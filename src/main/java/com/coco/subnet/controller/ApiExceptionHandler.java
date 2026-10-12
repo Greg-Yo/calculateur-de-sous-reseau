@@ -13,6 +13,9 @@ import org.springframework.core.annotation.Order;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -44,6 +47,9 @@ public class ApiExceptionHandler {
     /** Du plus précis au plus général : UnrecognizedPropertyException hérite de MismatchedInputException. */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ProblemDetail> unreadableBody(HttpMessageNotReadableException ex) {
+        if (findCause(ex, PayloadTooLargeException.class) != null) {
+            return ApiProblems.payloadTooLarge();
+        }
         UnrecognizedPropertyException unknown = findCause(ex, UnrecognizedPropertyException.class);
         if (unknown != null) {
             return ApiProblems.badRequest(ErrorCode.UNKNOWN_FIELD, path(unknown), "Champ inconnu : " + unknown.getPropertyName());
@@ -60,6 +66,18 @@ public class ApiExceptionHandler {
             return ApiProblems.badRequest(ErrorCode.MISSING_BODY, null, "Le corps de la requête est obligatoire");
         }
         return ApiProblems.badRequest(ErrorCode.MALFORMED_JSON, null, "JSON mal formé");
+    }
+
+    @ExceptionHandler(PayloadTooLargeException.class)
+    public ResponseEntity<ProblemDetail> payloadTooLarge() {
+        return ApiProblems.payloadTooLarge();
+    }
+
+    /** Elles peuvent aussi survenir une fois ApiController choisi : ne jamais les laisser devenir des 500. */
+    @ExceptionHandler({HttpRequestMethodNotSupportedException.class, HttpMediaTypeNotSupportedException.class,
+            HttpMediaTypeNotAcceptableException.class})
+    public ResponseEntity<ProblemDetail> routing(Exception ex) {
+        return ApiProblems.routing(ex);
     }
 
     @ExceptionHandler(Exception.class)
