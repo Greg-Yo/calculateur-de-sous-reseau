@@ -15,7 +15,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @RestController
@@ -52,6 +56,18 @@ public class ApiController {
             description = "Envoyer une seule forme : requirements, vlans, ou vlanCount + hostsPerVlan.")
     public VlsmResponse vlsm(@Valid @RequestBody VlsmRequest request) {
         return VlsmResponse.from(plan(request));
+    }
+
+    @PostMapping(value = "/vlsm/csv", consumes = MediaType.APPLICATION_JSON_VALUE, produces = "text/csv")
+    @Operation(summary = "Plan d'adressage au format CSV",
+            description = "Même requête que /api/vlsm. Les erreurs sont renvoyées en application/problem+json.")
+    public ResponseEntity<byte[]> vlsmCsv(@Valid @RequestBody VlsmRequest request) {
+        VlsmPlan plan = plan(request);
+        return ResponseEntity.ok()
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment().filename(csvExporter.fileName(plan)).build().toString())
+                .body(csvExporter.toBytes(plan));
     }
 
     /** Choisit la forme de la requête, puis délègue au service. */
