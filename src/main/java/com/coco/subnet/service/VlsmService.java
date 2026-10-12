@@ -20,6 +20,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static com.coco.subnet.model.ErrorCode.DUPLICATE_NAME;
@@ -42,6 +43,7 @@ public class VlsmService {
 
     public static final int MAX_REQUIREMENTS = 100;
     public static final int MAX_VLAN_COUNT = 100;
+    public static final int MAX_VLAN_ID = 4094;
     /** Un bloc /0 : 2^32 adresses moins le réseau et le broadcast. */
     public static final long MAX_HOSTS = 4_294_967_294L;
     /** Commence par une lettre ou un chiffre : empêche l'injection de formules dans Excel. */
@@ -83,9 +85,17 @@ public class VlsmService {
                 .toList();
     }
 
-    /** ID proposé pour une nouvelle ligne : plus grand ID existant + 10, ou 10. */
+    /**
+     * ID proposé pour une nouvelle ligne : plus grand ID existant + 10, ou 10.
+     * Au-delà de 4094, premier multiple de 10 encore libre (il en reste toujours : 100 lignes au plus).
+     */
     public int nextVlanId(Collection<Integer> existingIds) {
-        return existingIds.stream().filter(Objects::nonNull).mapToInt(Integer::intValue).max().orElse(0) + 10;
+        Set<Integer> used = existingIds.stream().filter(Objects::nonNull).collect(Collectors.toSet());
+        int next = used.stream().mapToInt(Integer::intValue).max().orElse(0) + 10;
+        if (next <= MAX_VLAN_ID) {
+            return next;
+        }
+        return IntStream.iterate(10, id -> id + 10).filter(id -> !used.contains(id)).findFirst().getAsInt();
     }
 
     private Cidr parseParent(String networkText, List<InputError> errors) {
@@ -130,7 +140,7 @@ public class VlsmService {
             if (vlanId == null) {
                 errors.add(new InputError(MISSING_FIELD, path + "id", "Ligne " + (index + 1) + " : l'ID du VLAN est obligatoire"));
                 label = "Ligne " + (index + 1);
-            } else if (vlanId < 1 || vlanId > 4094) {
+            } else if (vlanId < 1 || vlanId > MAX_VLAN_ID) {
                 errors.add(new InputError(VLAN_ID_OUT_OF_RANGE, path + "id", "VLAN " + vlanId + " : l'ID doit être entre 1 et 4094"));
                 label = "Ligne " + (index + 1);
             } else {

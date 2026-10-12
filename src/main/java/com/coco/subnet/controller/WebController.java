@@ -13,11 +13,13 @@ import com.coco.subnet.service.CsvExporter;
 import com.coco.subnet.service.SubnetService;
 import com.coco.subnet.service.VlsmService;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.InvalidPropertyException;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -135,6 +137,15 @@ public class WebController {
         } catch (NumberFormatException ignored) {
             // index falsifié : on réaffiche le formulaire sans rien changer
         }
+    }
+
+    /**
+     * Formulaire falsifié (ex. rows[300], au-delà de la limite de liaison de Spring) :
+     * on repart d'un formulaire vierge plutôt que d'afficher une erreur 500.
+     */
+    @ExceptionHandler(InvalidPropertyException.class)
+    public String invalidFormProperty() {
+        return "redirect:/vlsm";
     }
 
     /** Place chaque erreur du modèle sous son champ, sauf si ce champ a déjà une erreur (ex. typeMismatch). */

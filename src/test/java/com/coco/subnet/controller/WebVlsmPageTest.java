@@ -23,6 +23,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
@@ -195,5 +196,25 @@ class WebVlsmPageTest {
     void noRowsAtAll() throws Exception {
         mvc.perform(post("/vlsm").param("network", "10.0.0.0/24").param("_useVlans", "on").param("action", "calculate"))
                 .andExpect(model().attributeHasFieldErrorCode("vlsmForm", "rows", "NO_REQUIREMENTS"));
+    }
+
+    @Test
+    void addRowAfterVlan4090ProposesAValidId() throws Exception {
+        MvcResult result = mvc.perform(post("/vlsm").param("network", "10.0.0.0/24")
+                        .param("useVlans", "true").param("_useVlans", "on")
+                        .param("rows[0].vlanId", "4090").param("rows[0].hosts", "5").param("action", "addRow"))
+                .andReturn();
+
+        assertThat(form(result).getRows()).extracting(RowForm::getVlanId).containsExactly(4090, 10);
+    }
+
+    @Test
+    void forgedRowIndexBeyondTheBindingLimitIsNotA500() throws Exception {
+        for (String url : new String[]{"/vlsm", "/vlsm/csv"}) {
+            mvc.perform(post(url).param("network", "10.0.0.0/24").param("_useVlans", "on")
+                            .param("rows[300].name", "A").param("rows[300].hosts", "5").param("action", "calculate"))
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(redirectedUrl("/vlsm"));
+        }
     }
 }

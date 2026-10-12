@@ -65,4 +65,12 @@ class VlsmServiceGenerationTest {
         assertThat(service.nextVlanId(List.of(10, 40, 20))).isEqualTo(50);
         assertThat(service.nextVlanId(Arrays.asList(null, 30, null))).isEqualTo(40);
     }
+
+    @Test
+    void nextVlanIdNeverExceeds4094() {
+        assertThat(service.nextVlanId(List.of(4084))).isEqualTo(4094);
+        assertThat(service.nextVlanId(List.of(4090))).isEqualTo(10);
+        assertThat(service.nextVlanId(List.of(10, 20, 4094))).isEqualTo(30);
+        assertThat(service.nextVlanId(List.of(5000))).isEqualTo(10);
+    }
 }
