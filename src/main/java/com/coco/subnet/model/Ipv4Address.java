@@ -56,6 +56,36 @@ public record Ipv4Address(int value) {
         return new Ipv4Address(value);
     }
 
+    /** Masque de sous-réseau pour un préfixe /0 à /32. */
+    public static Ipv4Address maskOf(int prefix) {
+        if (prefix < 0 || prefix > 32) {
+            throw new IllegalArgumentException("Préfixe hors limites : " + prefix);
+        }
+        // Java décale modulo 32 : -1 << 32 vaut -1, d'où le cas particulier du /0
+        return new Ipv4Address(prefix == 0 ? 0 : -1 << (32 - prefix));
+    }
+
+    public Ipv4Address and(Ipv4Address other) {
+        return new Ipv4Address(value & other.value);
+    }
+
+    public Ipv4Address or(Ipv4Address other) {
+        return new Ipv4Address(value | other.value);
+    }
+
+    public Ipv4Address not() {
+        return new Ipv4Address(~value);
+    }
+
+    /** Valeur entre 0 et 4 294 967 295, pour compter et comparer sans nombres négatifs. */
+    public long toUnsignedLong() {
+        return Integer.toUnsignedLong(value);
+    }
+
+    public Ipv4Address plus(long offset) {
+        return new Ipv4Address((int) (toUnsignedLong() + offset));
+    }
+
     @Override
     public String toString() {
         return ((value >>> 24) & 0xFF) + "." + ((value >>> 16) & 0xFF) + "."
