@@ -12,10 +12,12 @@ import com.coco.subnet.model.VlsmPlan;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
@@ -32,12 +34,14 @@ import static com.coco.subnet.model.ErrorCode.NO_REQUIREMENTS;
 import static com.coco.subnet.model.ErrorCode.PARENT_NOT_SPLITTABLE;
 import static com.coco.subnet.model.ErrorCode.REQUIREMENT_TOO_LARGE;
 import static com.coco.subnet.model.ErrorCode.TOO_MANY_REQUIREMENTS;
+import static com.coco.subnet.model.ErrorCode.VLAN_COUNT_OUT_OF_RANGE;
 import static com.coco.subnet.model.ErrorCode.VLAN_ID_OUT_OF_RANGE;
 
 @Service
 public class VlsmService {
 
     public static final int MAX_REQUIREMENTS = 100;
+    public static final int MAX_VLAN_COUNT = 100;
     /** Un bloc /0 : 2^32 adresses moins le réseau et le broadcast. */
     public static final long MAX_HOSTS = 4_294_967_294L;
     /** Commence par une lettre ou un chiffre : empêche l'injection de formules dans Excel. */
@@ -54,6 +58,34 @@ public class VlsmService {
         checkCapacity(mode, parent.toNetwork(), resolved, errors);
         throwIfAny(errors);
         return allocateValidated(parent, mode, resolved);
+    }
+
+    /** Raccourci « même nombre d'hôtes pour tous » : génère des lignes détaillées et modifiables. */
+    public List<Requirement> generateUniformVlans(Integer vlanCount, Long hostsPerVlan) {
+        List<InputError> errors = new ArrayList<>();
+        if (vlanCount == null) {
+            errors.add(new InputError(MISSING_FIELD, "vlanCount", "Le champ « Nombre de VLAN » est obligatoire"));
+        } else if (vlanCount < 1 || vlanCount > MAX_VLAN_COUNT) {
+            errors.add(new InputError(VLAN_COUNT_OUT_OF_RANGE, "vlanCount", "Le nombre de VLAN doit être entre 1 et 100"));
+        }
+        long max = maxHosts(PlanMode.VLAN);
+        if (hostsPerVlan == null) {
+            errors.add(new InputError(MISSING_FIELD, "hostsPerVlan", "Le champ « Hôtes par VLAN » est obligatoire"));
+        } else if (hostsPerVlan < 1) {
+            errors.add(new InputError(HOSTS_NOT_POSITIVE, "hostsPerVlan", "Au moins 1 hôte requis"));
+        } else if (hostsPerVlan > max) {
+            errors.add(new InputError(HOSTS_TOO_LARGE, "hostsPerVlan",
+                    "Un sous-réseau IPv4 ne peut pas dépasser " + groupDigits(max) + " hôtes (hors passerelle)"));
+        }
+        throwIfAny(errors);
+        return IntStream.rangeClosed(1, vlanCount)
+                .mapToObj(i -> new Requirement(i * 10, "VLAN" + (i * 10), hostsPerVlan))
+                .toList();
+    }
+
+    /** ID proposé pour une nouvelle ligne : plus grand ID existant + 10, ou 10. */
+    public int nextVlanId(Collection<Integer> existingIds) {
+        return existingIds.stream().filter(Objects::nonNull).mapToInt(Integer::intValue).max().orElse(0) + 10;
     }
 
     private Cidr parseParent(String networkText, List<InputError> errors) {
