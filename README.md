@@ -2,7 +2,7 @@
 
 A Spring Boot web application and REST API that splits an IPv4 network into subnets — the tool you use **before** configuring a network in Cisco Packet Tracer or on real hardware.
 
-> **Status:** design phase. The specification is written and reviewed; implementation has not started yet.
+> **Status:** v1 implemented — CIDR, VLSM, VLAN, CSV export, web UI and REST API, with 100 % test coverage on the domain and service layers.
 > Full specification (in French): [`docs/superpowers/specs/2026-10-12-calculateur-sous-reseaux-design.md`](docs/superpowers/specs/2026-10-12-calculateur-sous-reseaux-design.md)
 
 ---
@@ -62,7 +62,7 @@ The web controller and the API controller call the **same services**, so every c
 
 ---
 
-## API overview (planned)
+## API overview
 
 | Method | Endpoint | Description |
 |---|---|---|
@@ -88,7 +88,7 @@ Errors follow the RFC 9457 `ProblemDetail` format with a stable `code` field:
 
 ---
 
-## Getting started (once implemented)
+## Getting started
 
 ```bash
 ./mvnw spring-boot:run
@@ -110,5 +110,5 @@ On Windows, use `mvnw.cmd` instead of `./mvnw`.
 
 ## Roadmap
 
-- [ ] v1 — CIDR, VLSM, VLAN, CSV export, web UI, REST API, tests (100 % coverage on `model` and `service`)
+- [x] v1 — CIDR, VLSM, VLAN, CSV export, web UI, REST API, tests (100 % coverage on `model` and `service`)
 - [ ] v2 — IPv6 support
