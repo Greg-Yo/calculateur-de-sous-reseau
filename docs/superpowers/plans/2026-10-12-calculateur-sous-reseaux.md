@@ -126,15 +126,18 @@ src/test/java/com/coco/subnet/
 - [ ] **Step 1 : Générer le squelette sur start.spring.io** (PowerShell, depuis la racine du projet)
 
 ```powershell
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $tmp = Join-Path $env:TEMP "subnet-starter"
 New-Item -ItemType Directory -Force $tmp | Out-Null
-Invoke-WebRequest -Uri "https://start.spring.io/starter.zip?type=maven-project&language=java&groupId=com.coco&artifactId=subnet-calculator&name=subnet-calculator&packageName=com.coco.subnet&javaVersion=21&baseDir=subnet-calculator&dependencies=web,validation,thymeleaf" -OutFile "$tmp\starter.zip"
+Invoke-WebRequest -Uri "https://start.spring.io/starter.zip?type=maven-project&language=java&groupId=com.coco&artifactId=subnet-calculator&name=subnet-calculator&packageName=com.coco.subnet&javaVersion=21&baseDir=subnet-calculator&dependencies=web,validation,thymeleaf" -OutFile "$tmp\starter.zip" -UseBasicParsing
 Expand-Archive "$tmp\starter.zip" -DestinationPath "$tmp\out" -Force
 $src = "$tmp\out\subnet-calculator"
 Copy-Item "$src\mvnw", "$src\mvnw.cmd", "$src\.gitattributes" -Destination .
 Copy-Item "$src\.mvn" -Destination . -Recurse
 Copy-Item "$src\src" -Destination . -Recurse
 ```
+
+Sous Windows PowerShell 5.1, la première ligne force TLS 1.2 et `-UseBasicParsing` évite une dépendance au moteur d'Internet Explorer.
 
 Le `pom.xml` généré n'est **pas** copié : on écrit le nôtre à l'étape 3. Le fichier `.gitattributes` généré force les fins de ligne LF pour `mvnw`, ce qui évite de casser le script sous Windows.
 
@@ -4600,6 +4603,8 @@ table.details th { width: 40%; color: var(--muted); font-weight: 600; }
 
 Run : `./mvnw verify`
 Expected : `BUILD SUCCESS`.
+
+Les templates lisent des records (`${result.cidr}`). Spring 6 accepte les accesseurs de type record (`cidr()`) dans SpEL. Si `showsTheResult` échoue parce que le contenu est vide, arrête-toi et signale-le.
 
 - [ ] **Step 9 : Vérifier à la main**
 
