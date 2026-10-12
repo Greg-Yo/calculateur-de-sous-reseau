@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('CIDR')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main>
+    <h1>Calcul CIDR</h1>
+
+    <form th:action="@{/}" th:object="${cidrForm}" method="post" class="card">
+        <label for="cidr">Adresse au format CIDR</label>
+        <input id="cidr" type="text" th:field="*{cidr}" placeholder="192.168.10.0/24" autocomplete="off"
+               th:classappend="${#fields.hasErrors('cidr')} ? 'invalid'">
+        <p class="error" th:if="${#fields.hasErrors('cidr')}" th:errors="*{cidr}">Erreur</p>
+        <button type="submit">Calculer</button>
+    </form>
+
+    <section th:if="${result}" class="card">
+        <p class="warning" th:each="warning : ${result.warnings}" th:text="${warning}">Avertissement</p>
+        <table class="details">
+            <tr><th>Réseau</th><td th:text="${result.cidr}"></td></tr>
+            <tr><th>Adresse réseau</th><td th:text="${result.networkAddress}"></td></tr>
+            <tr><th>Masque</th><td th:text="${result.subnetMask}"></td></tr>
+            <tr><th>Masque générique (wildcard)</th><td th:text="${result.wildcardMask}"></td></tr>
+            <tr><th>Broadcast</th><td th:text="${result.broadcastAddress}"></td></tr>
+            <tr><th>Première adresse utilisable</th><td th:text="${result.firstUsable}"></td></tr>
+            <tr><th>Dernière adresse utilisable</th><td th:text="${result.lastUsable}"></td></tr>
+            <tr><th>Hôtes utilisables</th><td th:text="${result.usableHosts}"></td></tr>
+            <tr><th>Adresses au total</th><td th:text="${result.totalAddresses}"></td></tr>
+        </table>
+    </section>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

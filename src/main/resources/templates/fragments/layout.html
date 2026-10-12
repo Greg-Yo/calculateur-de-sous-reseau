@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head th:fragment="head(title)">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${title} + ' — Calculateur de sous-réseaux'">Calculateur de sous-réseaux</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<header th:fragment="header" class="site-header">
+    <a class="brand" th:href="@{/}">Calculateur de sous-réseaux</a>
+    <nav>
+        <a th:href="@{/}">CIDR</a>
+        <a th:href="@{/vlsm}">VLSM / VLAN</a>
+        <a th:href="@{/swagger-ui.html}">API</a>
+    </nav>
+</header>
+<footer th:fragment="footer" class="site-footer">
+    <p>IPv4 · CIDR · VLSM · VLAN — préparez vos plans d'adressage avant Packet Tracer.</p>
+</footer>
+</body>
+</html>
