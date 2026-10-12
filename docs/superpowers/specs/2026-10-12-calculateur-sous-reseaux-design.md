@@ -74,8 +74,9 @@ src/main/java/com/coco/subnet/
 │   ├── Requirement.java           record (Integer vlanId, String name, long hosts) — un besoin
 │   ├── AllocatedSubnet.java       record — un besoin + son SubnetInfo + adresses libres
 │   ├── ErrorCode.java             enum — tous les codes d'erreur métier (§6.1)
-│   ├── FieldError.java            record (ErrorCode code, String field, String message)
-│   └── InvalidInputException.java RuntimeException(List<FieldError> errors) — une ou plusieurs erreurs
+│   ├── InputError.java            record (ErrorCode code, String field, String message)
+│   │                              (nommé ainsi pour ne pas entrer en conflit avec FieldError de Spring)
+│   └── InvalidInputException.java RuntimeException(List<InputError> errors) — une ou plusieurs erreurs
 ├── service/                     ← M : logique applicative
 │   ├── SubnetService.java         calcul CIDR
 │   ├── VlsmService.java           découpage VLSM / VLAN, génération des VLAN uniformes
@@ -305,7 +306,8 @@ Cet exemple correspond aux 4 VLAN × 30 hôtes de §4.3. Les VLAN 20 à 40 sont 
 - `addRow` : ajoute une ligne vide ;
 - `removeRow-<i>` : supprime la ligne `i` ;
 - `generate` : en mode VLAN uniforme, (re)génère les lignes à partir du nombre de VLAN et du nombre d'hôtes ;
-- `calculate` : lance le calcul et affiche le tableau des résultats, avec un bouton « Exporter CSV ».
+- `calculate` : lance le calcul et affiche le tableau des résultats, avec un bouton « Exporter CSV » ;
+- `refresh` : réaffiche simplement le formulaire. Ce bouton sert après avoir coché ou décoché « Utiliser des VLAN » : sans JavaScript, la page ne peut pas se mettre à jour toute seule.
 
 Le formulaire VLSM contient : le réseau parent, la case « Utiliser des VLAN », les champs « Nombre de VLAN » et « Hôtes par VLAN » avec le bouton « Générer » (visibles en mode VLAN), et le tableau des lignes. En mode VLAN, une ligne contient ID, nom et hôtes ; sinon, nom et hôtes.
 
@@ -313,7 +315,7 @@ Le formulaire VLSM contient : le réseau parent, la case « Utiliser des VLAN »
 
 ## 6. Gestion des erreurs
 
-Une seule exception métier : `InvalidInputException(List<FieldError> errors)`. Chaque `FieldError` contient un code, un champ et un message.
+Une seule exception métier : `InvalidInputException(List<InputError> errors)`. Chaque `InputError` contient un code, un champ et un message.
 - Le **modèle** la lève.
 - Les **controllers** la présentent : en JSON pour l'API, sous le champ concerné pour le web.
 - Les messages sont en français.
@@ -322,7 +324,8 @@ Une seule exception métier : `InvalidInputException(List<FieldError> errors)`. 
 **Une erreur par champ, toutes les erreurs du formulaire.** Pour un même champ, on ne garde que la première erreur trouvée (voir l'ordre ci-dessous). En revanche, `VlsmService` valide **tous** les champs avant de lever l'exception : le réseau parent et chaque ligne. L'utilisateur voit ainsi toutes ses erreurs en une fois. Les vérifications globales (doublons, `REQUIREMENT_TOO_LARGE`, `NETWORK_TOO_SMALL`) ne sont faites que si chaque champ est valide.
 
 **Deux niveaux de validation :**
-1. **`@Valid` sur les DTO** vérifie la forme : `@NotBlank`, `@NotNull`, `@Positive`, `@Size(max = 100)`, `@Min` / `@Max`. Chaque annotation porte son code d'erreur dans `message`, par exemple `@Size(max = 100, message = "TOO_MANY_REQUIREMENTS")`. Les handlers traduisent ce code en texte français grâce à `messages.properties`. Un `@NotNull` / `@NotBlank` sans code plus précis donne `MISSING_FIELD`.
+1. **`@Valid` sur les DTO** vérifie la forme : `@NotBlank`, `@NotNull`, `@Positive`, `@Size(max = 100)`, `@Min` / `@Max`. Chaque annotation porte son code d'erreur dans `message`, par exemple `@Size(max = 100, message = "TOO_MANY_REQUIREMENTS")`. Les handlers traduisent ce code en texte français grâce à `messages.properties`. Un `@NotNull` / `@NotBlank` sans code plus précis donne `MISSING_FIELD`. Concrètement, le message s'écrit sous la forme `{error.CODE}`, par exemple `message = "{error.TOO_MANY_REQUIREMENTS}"`. Le handler retrouve le code à partir de ce gabarit.
+   Les formulaires web, eux, n'ont **pas** d'annotations : ils sont validés uniquement par le modèle, qui donne les mêmes codes et les mêmes messages. Cela évite les doublons d'erreur sur un même champ, et toutes les erreurs du formulaire (y compris un formulaire vide) s'affichent en une fois.
 2. **Le modèle** vérifie le sens : octets, préfixe, place disponible, doublons. Il ne fait jamais confiance au controller. Il refait les mêmes contrôles de plage que les annotations, avec **les mêmes codes**. Une erreur a donc le même code, qu'elle soit détectée par `@Valid` ou par le modèle.
 
 ### 6.1 Erreurs d'entrée (modèle et services, communes au web et à l'API)
@@ -409,7 +412,7 @@ L'auto-correction d'une adresse vers celle de son réseau **n'est pas une erreur
 ### 6.3 Erreurs API (HTTP / JSON)
 
 Toutes les erreurs de l'API utilisent le format `ProblemDetail` (RFC 9457), avec le type de contenu `application/problem+json`.
-- **`errors` est toujours présent** : c'est la liste des `FieldError`, éventuellement vide pour les erreurs HTTP comme 404 ou 405.
+- **`errors` est toujours présent** : c'est la liste des `InputError`, éventuellement vide pour les erreurs HTTP comme 404 ou 405.
 - **Le `code` principal :**
   - s'il y a **une seule** erreur d'entrée, c'est son code (par exemple `OCTET_OUT_OF_RANGE`) ;
   - s'il y en a **plusieurs**, c'est `VALIDATION_FAILED`.
@@ -445,7 +448,7 @@ Toutes les erreurs dues à une saisie de l'utilisateur renvoient un 400, y compr
 **Qui traite quelle erreur :**
 - **`ApiExceptionHandler`** (limité à `ApiController`) traite les erreurs qui surviennent une fois que la requête est arrivée dans `ApiController` :
   - `InvalidInputException` ;
-  - `MethodArgumentNotValidException` (`@Valid` sur un corps JSON) et `HandlerMethodValidationException` (paramètres comme `cidr`) ;
+  - `MethodArgumentNotValidException` (`@Valid` sur un corps JSON). Le paramètre `cidr` n'a pas d'annotation de contrainte : c'est le modèle qui le valide ;
   - `MissingServletRequestParameterException` ;
   - `HttpMessageNotReadableException`. On lit sa cause pour choisir le code, en testant les cas **dans cet ordre**, du plus précis au plus général : `UnrecognizedPropertyException` → `UNKNOWN_FIELD` ; `InvalidFormatException` / `MismatchedInputException` → `TYPE_MISMATCH` ; corps absent → `MISSING_BODY` ; sinon → `MALFORMED_JSON`. L'ordre compte, car `UnrecognizedPropertyException` hérite de `MismatchedInputException` ;
   - les mêmes exceptions HTTP que `RoutingErrorHandler` (405, 406, 415), avec la même réponse. Elles peuvent aussi survenir une fois `ApiController` choisi, et elles ne doivent **jamais** tomber dans le cas général ci-dessous, qui les transformerait à tort en 500 ;
