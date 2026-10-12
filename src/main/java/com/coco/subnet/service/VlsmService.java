@@ -2,6 +2,8 @@ package com.coco.subnet.service;
 
 import com.coco.subnet.model.AllocatedSubnet;
 import com.coco.subnet.model.Cidr;
+import com.coco.subnet.model.InputError;
+import com.coco.subnet.model.InvalidInputException;
 import com.coco.subnet.model.Ipv4Address;
 import com.coco.subnet.model.PlanMode;
 import com.coco.subnet.model.Requirement;
@@ -12,14 +14,109 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
+import java.util.regex.Pattern;
 import java.util.stream.IntStream;
+
+import static com.coco.subnet.model.ErrorCode.EMPTY_NAME;
+import static com.coco.subnet.model.ErrorCode.HOSTS_NOT_POSITIVE;
+import static com.coco.subnet.model.ErrorCode.HOSTS_TOO_LARGE;
+import static com.coco.subnet.model.ErrorCode.INVALID_NAME;
+import static com.coco.subnet.model.ErrorCode.MISSING_FIELD;
+import static com.coco.subnet.model.ErrorCode.NO_REQUIREMENTS;
+import static com.coco.subnet.model.ErrorCode.PARENT_NOT_SPLITTABLE;
+import static com.coco.subnet.model.ErrorCode.TOO_MANY_REQUIREMENTS;
+import static com.coco.subnet.model.ErrorCode.VLAN_ID_OUT_OF_RANGE;
 
 @Service
 public class VlsmService {
 
+    public static final int MAX_REQUIREMENTS = 100;
+    /** Un bloc /0 : 2^32 adresses moins le réseau et le broadcast. */
+    public static final long MAX_HOSTS = 4_294_967_294L;
+    /** Commence par une lettre ou un chiffre : empêche l'injection de formules dans Excel. */
+    private static final Pattern NAME = Pattern.compile("^[\\p{L}\\p{N}][\\p{L}\\p{N}_-]{0,31}$");
+
     public VlsmPlan allocate(String networkText, PlanMode mode, List<Requirement> requirements) {
-        Cidr parent = Cidr.parse(networkText, "network");
-        return allocateValidated(parent, mode, requirements);
+        List<InputError> errors = new ArrayList<>();
+        Cidr parent = parseParent(networkText, errors);
+        List<Requirement> resolved = validateRequirements(mode, requirements, errors);
+        throwIfAny(errors);
+        return allocateValidated(parent, mode, resolved);
+    }
+
+    private Cidr parseParent(String networkText, List<InputError> errors) {
+        try {
+            Cidr parent = Cidr.parse(networkText, "network");
+            if (parent.prefix() >= 31) {
+                errors.add(new InputError(PARENT_NOT_SPLITTABLE, "network", "Un /31 ou /32 ne peut pas être découpé"));
+            }
+            return parent;
+        } catch (InvalidInputException e) {
+            errors.addAll(e.errors());
+            return null;
+        }
+    }
+
+    private List<Requirement> validateRequirements(PlanMode mode, List<Requirement> requirements, List<InputError> errors) {
+        String list = listField(mode);
+        if (requirements == null || requirements.isEmpty()) {
+            errors.add(new InputError(NO_REQUIREMENTS, list, "Ajoutez au moins un VLAN ou un besoin"));
+            return List.of();
+        }
+        if (requirements.size() > MAX_REQUIREMENTS) {
+            errors.add(new InputError(TOO_MANY_REQUIREMENTS, list, "Maximum 100 sous-réseaux"));
+            return List.of();
+        }
+        List<Requirement> resolved = new ArrayList<>();
+        for (int i = 0; i < requirements.size(); i++) {
+            Requirement row = requirements.get(i) == null ? new Requirement(null, null, null) : requirements.get(i);
+            resolved.add(validateRow(mode, i, row, errors));
+        }
+        return resolved;
+    }
+
+    /** Valide une ligne et renvoie le besoin « résolu » (nom nettoyé, nom par défaut en VLAN). */
+    private Requirement validateRow(PlanMode mode, int index, Requirement row, List<InputError> errors) {
+        String path = listField(mode) + "[" + index + "].";
+        String name = row.name() == null ? "" : row.name().strip();
+        Integer vlanId = null;
+        String label;
+        if (mode == PlanMode.VLAN) {
+            vlanId = row.vlanId();
+            if (vlanId == null) {
+                errors.add(new InputError(MISSING_FIELD, path + "id", "Ligne " + (index + 1) + " : l'ID du VLAN est obligatoire"));
+                label = "Ligne " + (index + 1);
+            } else if (vlanId < 1 || vlanId > 4094) {
+                errors.add(new InputError(VLAN_ID_OUT_OF_RANGE, path + "id", "VLAN " + vlanId + " : l'ID doit être entre 1 et 4094"));
+                label = "Ligne " + (index + 1);
+            } else {
+                label = "VLAN " + vlanId;
+            }
+            if (name.isEmpty() && vlanId != null) {
+                name = "VLAN" + vlanId;
+            }
+        } else {
+            label = NAME.matcher(name).matches() ? name : "Besoin n°" + (index + 1);
+            if (name.isEmpty()) {
+                errors.add(new InputError(EMPTY_NAME, path + "name", "Le besoin n°" + (index + 1) + " doit avoir un nom"));
+            }
+        }
+        if (!name.isEmpty() && !NAME.matcher(name).matches()) {
+            errors.add(new InputError(INVALID_NAME, path + "name",
+                    label + " : nom invalide : lettres (accents compris), chiffres, - et _ (32 max)"));
+        }
+        Long hosts = row.hosts();
+        long max = maxHosts(mode);
+        if (hosts == null) {
+            errors.add(new InputError(MISSING_FIELD, path + "hosts", label + " : le nombre d'hôtes est obligatoire"));
+        } else if (hosts < 1) {
+            errors.add(new InputError(HOSTS_NOT_POSITIVE, path + "hosts", label + " : au moins 1 hôte requis"));
+        } else if (hosts > max) {
+            errors.add(new InputError(HOSTS_TOO_LARGE, path + "hosts", label + " : un sous-réseau IPv4 ne peut pas dépasser "
+                    + groupDigits(max) + " hôtes" + (mode == PlanMode.VLAN ? " (hors passerelle)" : "")));
+        }
+        return new Requirement(vlanId, name, hosts);
     }
 
     /** Alloue les blocs du plus grand au plus petit, à la suite, à partir du début du réseau parent. */
@@ -55,5 +152,24 @@ public class VlsmService {
 
     static int prefixOf(long blockSize) {
         return 32 - Long.numberOfTrailingZeros(blockSize);
+    }
+
+    static long maxHosts(PlanMode mode) {
+        return mode == PlanMode.VLAN ? MAX_HOSTS - 1 : MAX_HOSTS;
+    }
+
+    private static String listField(PlanMode mode) {
+        return mode == PlanMode.VLAN ? "vlans" : "requirements";
+    }
+
+    /** 4294967294 → "4 294 967 294". */
+    private static String groupDigits(long value) {
+        return String.format(Locale.ROOT, "%,d", value).replace(',', ' ');
+    }
+
+    private static void throwIfAny(List<InputError> errors) {
+        if (!errors.isEmpty()) {
+            throw new InvalidInputException(errors);
+        }
     }
 }
