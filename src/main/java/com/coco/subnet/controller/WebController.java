@@ -12,6 +12,9 @@ import com.coco.subnet.model.VlsmPlan;
 import com.coco.subnet.service.CsvExporter;
 import com.coco.subnet.service.SubnetService;
 import com.coco.subnet.service.VlsmService;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -20,6 +23,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -76,6 +80,21 @@ public class WebController {
             default -> removeRow(form, action); // "refresh" et actions inconnues : simple réaffichage
         }
         return "vlsm";
+    }
+
+    /** Succès : le fichier est écrit dans la réponse (on renvoie null). Échec : retour au formulaire. */
+    @PostMapping("/vlsm/csv")
+    public String exportCsv(@ModelAttribute("vlsmForm") VlsmForm form, BindingResult binding,
+                            HttpServletResponse response) throws IOException {
+        Optional<VlsmPlan> plan = calculate(form, binding);
+        if (plan.isEmpty()) {
+            return "vlsm";
+        }
+        response.setContentType("text/csv;charset=UTF-8");
+        response.setHeader(HttpHeaders.CONTENT_DISPOSITION,
+                ContentDisposition.attachment().filename(csvExporter.fileName(plan.get())).build().toString());
+        response.getOutputStream().write(csvExporter.toBytes(plan.get()));
+        return null;
     }
 
     private void generate(VlsmForm form, BindingResult binding) {
