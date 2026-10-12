@@ -53,7 +53,8 @@ public class ApiController {
 
     @PostMapping(value = "/vlsm", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Découpe un réseau (VLSM ou VLAN)",
-            description = "Envoyer une seule forme : requirements, vlans, ou vlanCount + hostsPerVlan.")
+            description = "Envoyer une seule forme : requirements, vlans, vlanCount + hostsPerVlan (même nombre d'hôtes), "
+                    + "ou vlanCount seul (parts égales).")
     public VlsmResponse vlsm(@Valid @RequestBody VlsmRequest request) {
         return VlsmResponse.from(plan(request));
     }
@@ -78,7 +79,7 @@ public class ApiController {
         int forms = (hasRequirements ? 1 : 0) + (hasVlans ? 1 : 0) + (hasShortcut ? 1 : 0);
         if (forms > 1) {
             throw InvalidInputException.of(ErrorCode.AMBIGUOUS_REQUEST, null,
-                    "Envoyez une seule forme : requirements, vlans ou vlanCount + hostsPerVlan");
+                    "Envoyez une seule forme : requirements, vlans ou vlanCount (+ hostsPerVlan)");
         }
         if (forms == 0) {
             throw InvalidInputException.of(ErrorCode.NO_REQUIREMENTS, "vlans", "Ajoutez au moins un VLAN ou un besoin");
@@ -95,7 +96,10 @@ public class ApiController {
                     .toList();
             return vlsmService.allocate(request.network(), PlanMode.VLAN, vlans);
         }
-        return vlsmService.allocate(request.network(), PlanMode.VLAN,
-                vlsmService.generateUniformVlans(request.vlanCount(), request.hostsPerVlan()));
+        // vlanCount seul : parts égales ; avec hostsPerVlan : même nombre d'hôtes pour tous
+        List<Requirement> vlans = request.vlanCount() != null && request.hostsPerVlan() == null
+                ? vlsmService.generateEqualSplitVlans(request.network(), request.vlanCount())
+                : vlsmService.generateUniformVlans(request.vlanCount(), request.hostsPerVlan());
+        return vlsmService.allocate(request.network(), PlanMode.VLAN, vlans);
     }
 }

@@ -11,7 +11,8 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 
 /**
- * Exactement une des trois formes : requirements, vlans, ou vlanCount + hostsPerVlan.
+ * Exactement une forme : requirements, vlans, vlanCount + hostsPerVlan (même nombre d'hôtes),
+ * ou vlanCount seul (parts égales).
  * Le réseau n'a pas d'annotation : le modèle renvoie EMPTY_INPUT, comme partout ailleurs.
  */
 public record VlsmRequest(
@@ -24,5 +25,5 @@ public record VlsmRequest(
         @Max(value = 100, message = "{error.VLAN_COUNT_OUT_OF_RANGE}")
         @Schema(example = "4") Integer vlanCount,
         @Positive(message = "{error.HOSTS_NOT_POSITIVE}")
-        @Schema(example = "30") Long hostsPerVlan) {
+        @Schema(example = "30", description = "Facultatif : sans lui, le réseau est découpé en parts égales") Long hostsPerVlan) {
 }

@@ -65,11 +65,7 @@ public class VlsmService {
     /** Raccourci « même nombre d'hôtes pour tous » : génère des lignes détaillées et modifiables. */
     public List<Requirement> generateUniformVlans(Integer vlanCount, Long hostsPerVlan) {
         List<InputError> errors = new ArrayList<>();
-        if (vlanCount == null) {
-            errors.add(new InputError(MISSING_FIELD, "vlanCount", "Le champ « Nombre de VLAN » est obligatoire"));
-        } else if (vlanCount < 1 || vlanCount > MAX_VLAN_COUNT) {
-            errors.add(new InputError(VLAN_COUNT_OUT_OF_RANGE, "vlanCount", "Le nombre de VLAN doit être entre 1 et 100"));
-        }
+        validateVlanCount(vlanCount, errors);
         long max = maxHosts(PlanMode.VLAN);
         if (hostsPerVlan == null) {
             errors.add(new InputError(MISSING_FIELD, "hostsPerVlan", "Le champ « Hôtes par VLAN » est obligatoire"));
@@ -80,8 +76,43 @@ public class VlsmService {
                     "Un sous-réseau IPv4 ne peut pas dépasser " + groupDigits(max) + " hôtes (hors passerelle)"));
         }
         throwIfAny(errors);
+        return numberedVlans(vlanCount, hostsPerVlan);
+    }
+
+    /**
+     * Découpage en parts égales : le réseau est coupé en 2^k blocs identiques (2^k ≥ nombre de VLAN),
+     * chaque VLAN reçoit un bloc entier. Les blocs en trop restent libres.
+     */
+    public List<Requirement> generateEqualSplitVlans(String networkText, Integer vlanCount) {
+        List<InputError> errors = new ArrayList<>();
+        Cidr parent = parseParent(networkText, errors);
+        validateVlanCount(vlanCount, errors);
+        throwIfAny(errors);
+        // k = plafond de log2(nombre de VLAN) : 3 VLAN → 2 bits → 4 blocs
+        int extraBits = 32 - Integer.numberOfLeadingZeros(vlanCount - 1);
+        int prefix = parent.prefix() + extraBits;
+        if (prefix > 30) {
+            throw InvalidInputException.of(NETWORK_TOO_SMALL, "network", "Un /" + parent.prefix()
+                    + " ne peut pas être découpé en " + vlanCount + " VLAN : il faudrait des blocs /" + prefix
+                    + " (un /30 au minimum par VLAN)");
+        }
+        // Bloc entier moins réseau, broadcast et passerelle
+        long hosts = (1L << (32 - prefix)) - 3;
+        return numberedVlans(vlanCount, hosts);
+    }
+
+    private static void validateVlanCount(Integer vlanCount, List<InputError> errors) {
+        if (vlanCount == null) {
+            errors.add(new InputError(MISSING_FIELD, "vlanCount", "Le champ « Nombre de VLAN » est obligatoire"));
+        } else if (vlanCount < 1 || vlanCount > MAX_VLAN_COUNT) {
+            errors.add(new InputError(VLAN_COUNT_OUT_OF_RANGE, "vlanCount", "Le nombre de VLAN doit être entre 1 et 100"));
+        }
+    }
+
+    /** VLAN10, VLAN20… avec le même nombre d'hôtes. */
+    private static List<Requirement> numberedVlans(int vlanCount, long hosts) {
         return IntStream.rangeClosed(1, vlanCount)
-                .mapToObj(i -> new Requirement(i * 10, "VLAN" + (i * 10), hostsPerVlan))
+                .mapToObj(i -> new Requirement(i * 10, "VLAN" + (i * 10), hosts))
                 .toList();
     }
 

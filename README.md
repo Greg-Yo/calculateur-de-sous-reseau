@@ -11,7 +11,7 @@ A Spring Boot web application and REST API that splits an IPv4 network into subn
 
 - **CIDR calculator** — enter `192.168.10.0/24` and get the network address, subnet mask, wildcard mask, broadcast address, first and last usable host, and host count. Handles the `/31` (RFC 3021 point-to-point) and `/32` special cases, and auto-corrects a host address to its network (`192.168.10.37/24` → `192.168.10.0/24`) with a warning.
 - **VLSM subnetting** — from a list of named requirements (e.g. 50, 20, 10 and 2 hosts), allocate the smallest fitting blocks, largest first, with no gaps.
-- **VLAN planning** — define a number of VLANs and the hosts per VLAN, either the same for all (a shortcut that generates editable per-VLAN rows) or detailed per VLAN. Each VLAN gets its own subnet, and a **gateway address is reserved automatically** (first usable address).
+- **VLAN planning** — three input modes: just a number of VLANs (the network is split into equal blocks, e.g. 3 VLANs in a /24 → three /26, one /26 left free), a number of VLANs with the same host count for all, or a host count specific to each VLAN. The first two generate editable per-VLAN rows. Each VLAN gets its own subnet, and a **gateway address is reserved automatically** (first usable address).
 - **Clear error handling** — invalid input such as `300.1.1.1/24`, `/33`, `1.2.3.4.` or duplicate VLAN IDs is rejected with a precise, stable error code and a human-readable message.
 - **REST API** — JSON endpoints documented with Swagger / OpenAPI.
 - **Web interface** — server-rendered pages (Thymeleaf), usable without any technical tool.
@@ -76,6 +76,8 @@ Example request:
 POST /api/vlsm
 { "network": "192.168.10.0/24", "vlanCount": 4, "hostsPerVlan": 30 }
 ```
+
+Send exactly one form: `requirements`, `vlans` (hosts per VLAN), `vlanCount` + `hostsPerVlan` (same hosts for all), or `vlanCount` alone (equal split).
 
 Errors follow the RFC 9457 `ProblemDetail` format with a stable `code` field:
 

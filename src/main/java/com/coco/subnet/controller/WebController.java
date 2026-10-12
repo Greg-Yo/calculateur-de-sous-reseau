@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /** Pages web : chaque action remplit le Model, puis renvoie le nom de la vue Thymeleaf. */
@@ -76,9 +77,14 @@ public class WebController {
         switch (action) {
             case "addRow" -> form.getRows().add(
                     new RowForm(form.isUseVlans() ? vlsmService.nextVlanId(form.vlanIds()) : null, "", null));
+            // Le découpage affiche aussitôt le plan complet de chaque VLAN
+            case "split" -> {
+                if (split(form, binding)) {
+                    showPlan(form, binding, model);
+                }
+            }
             case "generate" -> generate(form, binding);
-            case "calculate" -> calculate(form, binding)
-                    .ifPresent(plan -> model.addAttribute("plan", VlsmResponse.from(plan)));
+            case "calculate" -> showPlan(form, binding, model);
             default -> removeRow(form, action); // "refresh" et actions inconnues : simple réaffichage
         }
         return "vlsm";
@@ -99,18 +105,36 @@ public class WebController {
         return null;
     }
 
+    private boolean split(VlsmForm form, BindingResult binding) {
+        if (binding.hasFieldErrors("vlanCount")) {
+            return false;
+        }
+        return replaceRows(form, binding, () -> vlsmService.generateEqualSplitVlans(form.getNetwork(), form.getVlanCount()));
+    }
+
+    private void showPlan(VlsmForm form, BindingResult binding, Model model) {
+        calculate(form, binding).ifPresent(plan -> model.addAttribute("plan", VlsmResponse.from(plan)));
+    }
+
     private void generate(VlsmForm form, BindingResult binding) {
         if (binding.hasFieldErrors("vlanCount") || binding.hasFieldErrors("hostsPerVlan")) {
             return;
         }
+        replaceRows(form, binding, () -> vlsmService.generateUniformVlans(form.getVlanCount(), form.getHostsPerVlan()));
+    }
+
+    /** Remplace les lignes par les VLAN générés ; en cas d'erreur, les lignes actuelles sont gardées. */
+    private static boolean replaceRows(VlsmForm form, BindingResult binding, Supplier<List<Requirement>> generator) {
         try {
-            List<Requirement> vlans = vlsmService.generateUniformVlans(form.getVlanCount(), form.getHostsPerVlan());
+            List<Requirement> vlans = generator.get();
             form.setUseVlans(true);
             form.setRows(vlans.stream()
                     .map(v -> new RowForm(v.vlanId(), v.name(), v.hosts()))
                     .collect(Collectors.toCollection(ArrayList::new)));
+            return true;
         } catch (InvalidInputException e) {
             reject(binding, e);
+            return false;
         }
     }
 

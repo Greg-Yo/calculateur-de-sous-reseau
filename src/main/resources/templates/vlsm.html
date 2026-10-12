@@ -26,16 +26,30 @@
         <button type="submit" name="action" value="refresh" class="secondary">Mettre à jour le formulaire</button>
 
         <fieldset th:if="*{useVlans}">
-            <legend>Raccourci : même nombre d'hôtes pour tous les VLAN</legend>
-            <label for="vlanCount">Nombre de VLAN</label>
-            <input id="vlanCount" type="text" inputmode="numeric" th:field="*{vlanCount}"
-                   th:classappend="${#fields.hasErrors('vlanCount')} ? 'invalid'">
-            <p class="error" th:if="${#fields.hasErrors('vlanCount')}" th:errors="*{vlanCount}"></p>
-            <label for="hostsPerVlan">Hôtes par VLAN (hors passerelle)</label>
-            <input id="hostsPerVlan" type="text" inputmode="numeric" th:field="*{hostsPerVlan}"
-                   th:classappend="${#fields.hasErrors('hostsPerVlan')} ? 'invalid'">
-            <p class="error" th:if="${#fields.hasErrors('hostsPerVlan')}" th:errors="*{hostsPerVlan}"></p>
-            <button type="submit" name="action" value="generate" class="secondary">Générer les lignes</button>
+            <legend>Mode de saisie des VLAN</legend>
+            <label class="checkbox"><input type="radio" th:field="*{vlanMode}" value="EQUAL_SPLIT">
+                Parts égales : le réseau est découpé selon le nombre de VLAN</label>
+            <label class="checkbox"><input type="radio" th:field="*{vlanMode}" value="UNIFORM">
+                Même nombre d'hôtes pour tous les VLAN</label>
+            <label class="checkbox"><input type="radio" th:field="*{vlanMode}" value="CUSTOM">
+                Nombre d'hôtes propre à chaque VLAN</label>
+            <button type="submit" name="action" value="refresh" class="secondary">Changer de mode</button>
+
+            <th:block th:if="*{vlanMode.name() != 'CUSTOM'}">
+                <label for="vlanCount">Nombre de VLAN</label>
+                <input id="vlanCount" type="text" inputmode="numeric" th:field="*{vlanCount}"
+                       th:classappend="${#fields.hasErrors('vlanCount')} ? 'invalid'">
+                <p class="error" th:if="${#fields.hasErrors('vlanCount')}" th:errors="*{vlanCount}"></p>
+            </th:block>
+            <button th:if="*{vlanMode.name() == 'EQUAL_SPLIT'}" type="submit" name="action" value="split"
+                    class="secondary">Découper en parts égales</button>
+            <th:block th:if="*{vlanMode.name() == 'UNIFORM'}">
+                <label for="hostsPerVlan">Hôtes par VLAN (hors passerelle)</label>
+                <input id="hostsPerVlan" type="text" inputmode="numeric" th:field="*{hostsPerVlan}"
+                       th:classappend="${#fields.hasErrors('hostsPerVlan')} ? 'invalid'">
+                <p class="error" th:if="${#fields.hasErrors('hostsPerVlan')}" th:errors="*{hostsPerVlan}"></p>
+                <button type="submit" name="action" value="generate" class="secondary">Générer les lignes</button>
+            </th:block>
         </fieldset>
 
         <p class="error" th:if="${#fields.hasErrors('rows')}" th:errors="*{rows}"></p>
@@ -91,10 +105,12 @@
                 <th>Hôtes demandés</th>
                 <th>Réseau</th>
                 <th>Masque</th>
+                <th>Wildcard</th>
                 <th th:if="${plan.mode == 'VLAN'}">Passerelle</th>
                 <th>Première</th>
                 <th>Dernière</th>
                 <th>Broadcast</th>
+                <th>Hôtes utilisables</th>
                 <th>Libres</th>
             </tr>
             </thead>
@@ -105,10 +121,12 @@
                 <td th:text="${s.requestedHosts}"></td>
                 <td th:text="${s.cidr}"></td>
                 <td th:text="${s.subnetMask}"></td>
+                <td th:text="${s.wildcardMask}"></td>
                 <td th:if="${plan.mode == 'VLAN'}" th:text="${s.gateway}"></td>
                 <td th:text="${s.firstUsable}"></td>
                 <td th:text="${s.lastUsable}"></td>
                 <td th:text="${s.broadcastAddress}"></td>
+                <td th:text="${s.usableHosts}"></td>
                 <td th:text="${s.freeHosts}"></td>
             </tr>
             </tbody>

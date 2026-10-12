@@ -11,6 +11,7 @@ public class VlsmForm {
 
     private String network = "";
     private boolean useVlans = true;
+    private VlanInputMode vlanMode = VlanInputMode.CUSTOM;
     private Integer vlanCount;
     private Long hostsPerVlan;
     private List<RowForm> rows = new ArrayList<>();
@@ -43,6 +44,14 @@ public class VlsmForm {
 
     public void setUseVlans(boolean useVlans) {
         this.useVlans = useVlans;
+    }
+
+    public VlanInputMode getVlanMode() {
+        return vlanMode;
+    }
+
+    public void setVlanMode(VlanInputMode vlanMode) {
+        this.vlanMode = vlanMode == null ? VlanInputMode.CUSTOM : vlanMode;
     }
 
     public Integer getVlanCount() {

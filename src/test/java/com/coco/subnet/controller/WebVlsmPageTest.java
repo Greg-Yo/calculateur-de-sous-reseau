@@ -19,6 +19,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -109,9 +110,67 @@ class WebVlsmPageTest {
     }
 
     @Test
+    void splitCreatesEqualRows() throws Exception {
+        MvcResult result = mvc.perform(post("/vlsm").param("network", "192.168.10.0/24")
+                        .param("useVlans", "true").param("_useVlans", "on").param("vlanMode", "EQUAL_SPLIT")
+                        .param("vlanCount", "3").param("action", "split"))
+                .andExpect(content().string(containsString("Découper en parts égales")))
+                .andReturn();
+
+        assertThat(form(result).getRows()).extracting(RowForm::getVlanId).containsExactly(10, 20, 30);
+        assertThat(form(result).getRows()).extracting(RowForm::getHosts).containsOnly(61L);
+    }
+
+    @Test
+    void splitShowsTheFullPlanForEveryVlan() throws Exception {
+        MvcResult result = mvc.perform(post("/vlsm").param("network", "192.168.10.0/24")
+                        .param("useVlans", "true").param("_useVlans", "on").param("vlanMode", "EQUAL_SPLIT")
+                        .param("vlanCount", "3").param("action", "split"))
+                .andExpect(content().string(containsString("192.168.10.128/26")))
+                .andExpect(content().string(containsString("255.255.255.192")))
+                .andExpect(content().string(containsString("0.0.0.63")))
+                .andExpect(content().string(containsString("192.168.10.129")))
+                .andExpect(content().string(containsString("192.168.10.191")))
+                .andReturn();
+
+        VlsmResponse plan = (VlsmResponse) modelOf(result).get("plan");
+        assertThat(plan.subnets()).extracting(SubnetEntry::usableHosts).containsOnly(62L);
+        assertThat(plan.remainingAddresses()).isEqualTo(64);
+    }
+
+    @Test
+    void splitOnATooSmallNetworkShowsTheErrorUnderTheNetwork() throws Exception {
+        MvcResult result = mvc.perform(vlanForm("split").param("vlanMode", "EQUAL_SPLIT").param("vlanCount", "100"))
+                .andExpect(model().attributeHasFieldErrorCode("vlsmForm", "network", "NETWORK_TOO_SMALL"))
+                .andReturn();
+
+        assertThat(form(result).getRows()).hasSize(2);
+    }
+
+    @Test
+    void splitWithTextShowsATypeMismatch() throws Exception {
+        mvc.perform(vlanForm("split").param("vlanMode", "EQUAL_SPLIT").param("vlanCount", "abc"))
+                .andExpect(model().attributeHasFieldErrorCode("vlsmForm", "vlanCount", "typeMismatch"));
+    }
+
+    @Test
+    void eachModeShowsOnlyItsOwnFields() throws Exception {
+        mvc.perform(vlanForm("refresh").param("vlanMode", "EQUAL_SPLIT"))
+                .andExpect(content().string(containsString("Découper en parts égales")))
+                .andExpect(content().string(not(containsString("Générer les lignes"))));
+        mvc.perform(vlanForm("refresh").param("vlanMode", "UNIFORM"))
+                .andExpect(content().string(containsString("Générer les lignes")))
+                .andExpect(content().string(not(containsString("Découper en parts égales"))));
+        mvc.perform(vlanForm("refresh").param("vlanMode", "CUSTOM"))
+                .andExpect(content().string(not(containsString("Générer les lignes"))))
+                .andExpect(content().string(not(containsString("Découper en parts égales"))));
+    }
+
+    @Test
     void generateCreatesDetailedRows() throws Exception {
         MvcResult result = mvc.perform(post("/vlsm").param("network", "192.168.10.0/24")
                         .param("useVlans", "true").param("_useVlans", "on")
+                        .param("vlanMode", "UNIFORM")
                         .param("vlanCount", "4").param("hostsPerVlan", "30").param("action", "generate"))
                 .andReturn();
 

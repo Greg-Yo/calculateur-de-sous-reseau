@@ -104,13 +104,35 @@ class ApiVlsmEndpointTest {
     }
 
     @Test
-    void shortcutNeedsBothFields() throws Exception {
+    void vlanCountAloneSplitsIntoEqualParts() throws Exception {
         postJson("""
-                { "network": "192.168.10.0/24", "vlanCount": 4 }
+                { "network": "192.168.10.0/24", "vlanCount": 3 }
+                """)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.subnets", hasSize(3)))
+                .andExpect(jsonPath("$.subnets[0].requestedHosts").value(61))
+                .andExpect(jsonPath("$.subnets[2].cidr").value("192.168.10.128/26"))
+                .andExpect(jsonPath("$.remainingAddresses").value(64));
+    }
+
+    @Test
+    void equalSplitOnATooSmallNetwork() throws Exception {
+        postJson("""
+                { "network": "192.168.10.0/28", "vlanCount": 5 }
+                """)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("NETWORK_TOO_SMALL"))
+                .andExpect(jsonPath("$.errors[0].field").value("network"));
+    }
+
+    @Test
+    void hostsPerVlanNeedsVlanCount() throws Exception {
+        postJson("""
+                { "network": "192.168.10.0/24", "hostsPerVlan": 30 }
                 """)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("MISSING_FIELD"))
-                .andExpect(jsonPath("$.errors[0].field").value("hostsPerVlan"));
+                .andExpect(jsonPath("$.errors[0].field").value("vlanCount"));
     }
 
     @Test
