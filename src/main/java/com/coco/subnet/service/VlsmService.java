@@ -13,18 +13,24 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 
+import static com.coco.subnet.model.ErrorCode.DUPLICATE_NAME;
+import static com.coco.subnet.model.ErrorCode.DUPLICATE_VLAN_ID;
 import static com.coco.subnet.model.ErrorCode.EMPTY_NAME;
 import static com.coco.subnet.model.ErrorCode.HOSTS_NOT_POSITIVE;
 import static com.coco.subnet.model.ErrorCode.HOSTS_TOO_LARGE;
 import static com.coco.subnet.model.ErrorCode.INVALID_NAME;
 import static com.coco.subnet.model.ErrorCode.MISSING_FIELD;
+import static com.coco.subnet.model.ErrorCode.NETWORK_TOO_SMALL;
 import static com.coco.subnet.model.ErrorCode.NO_REQUIREMENTS;
 import static com.coco.subnet.model.ErrorCode.PARENT_NOT_SPLITTABLE;
+import static com.coco.subnet.model.ErrorCode.REQUIREMENT_TOO_LARGE;
 import static com.coco.subnet.model.ErrorCode.TOO_MANY_REQUIREMENTS;
 import static com.coco.subnet.model.ErrorCode.VLAN_ID_OUT_OF_RANGE;
 
@@ -41,6 +47,11 @@ public class VlsmService {
         List<InputError> errors = new ArrayList<>();
         Cidr parent = parseParent(networkText, errors);
         List<Requirement> resolved = validateRequirements(mode, requirements, errors);
+        throwIfAny(errors);
+        // Les vérifications globales n'ont de sens que si chaque champ est valide
+        checkDuplicates(mode, resolved, errors);
+        throwIfAny(errors);
+        checkCapacity(mode, parent.toNetwork(), resolved, errors);
         throwIfAny(errors);
         return allocateValidated(parent, mode, resolved);
     }
@@ -117,6 +128,46 @@ public class VlsmService {
                     + groupDigits(max) + " hôtes" + (mode == PlanMode.VLAN ? " (hors passerelle)" : "")));
         }
         return new Requirement(vlanId, name, hosts);
+    }
+
+    private void checkDuplicates(PlanMode mode, List<Requirement> requirements, List<InputError> errors) {
+        String list = listField(mode);
+        Set<Integer> ids = new HashSet<>();
+        Set<String> names = new HashSet<>();
+        for (int i = 0; i < requirements.size(); i++) {
+            Requirement r = requirements.get(i);
+            if (mode == PlanMode.VLAN && !ids.add(r.vlanId())) {
+                errors.add(new InputError(DUPLICATE_VLAN_ID, list + "[" + i + "].id", "VLAN " + r.vlanId() + " est en double"));
+                continue; // même ID → même nom par défaut : une seule erreur suffit
+            }
+            if (!names.add(r.name().toLowerCase(Locale.ROOT))) {
+                errors.add(new InputError(DUPLICATE_NAME, list + "[" + i + "].name", "Le nom '" + r.name() + "' est utilisé deux fois"));
+            }
+        }
+    }
+
+    private void checkCapacity(PlanMode mode, Cidr network, List<Requirement> requirements, List<InputError> errors) {
+        long capacity = network.size();
+        long total = 0;
+        for (int i = 0; i < requirements.size(); i++) {
+            Requirement r = requirements.get(i);
+            long block = blockSize(mode, r.hosts());
+            total += block;
+            if (block > capacity) {
+                errors.add(new InputError(REQUIREMENT_TOO_LARGE, listField(mode) + "[" + i + "].hosts",
+                        label(mode, r) + " (" + r.hosts() + " hôtes, bloc /" + prefixOf(block)
+                                + ") ne tient pas dans un /" + network.prefix()));
+            }
+        }
+        if (errors.isEmpty() && total > capacity) {
+            errors.add(new InputError(NETWORK_TOO_SMALL, "network", "Le /" + network.prefix() + " (" + capacity
+                    + " adresses) ne suffit pas : " + total + " nécessaires, il manque " + (total - capacity)));
+        }
+    }
+
+    /** Libellé d'une ligne déjà validée, utilisé en tête des messages. */
+    private static String label(PlanMode mode, Requirement r) {
+        return mode == PlanMode.VLAN ? "VLAN " + r.vlanId() : r.name();
     }
 
     /** Alloue les blocs du plus grand au plus petit, à la suite, à partir du début du réseau parent. */
