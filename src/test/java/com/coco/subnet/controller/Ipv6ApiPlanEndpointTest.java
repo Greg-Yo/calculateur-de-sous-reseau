@@ -158,6 +158,32 @@ class Ipv6ApiPlanEndpointTest {
     }
 
     @Test
+    void vlanCountAndSubnetsAtOnceIsAmbiguous() throws Exception {
+        postJson("""
+                { "network": "2001:db8:acad::/48", "vlanCount": 2, "subnets": [ { "name": "A" } ] }
+                """)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("AMBIGUOUS_REQUEST"));
+    }
+
+    @Test
+    void vlanIdOutOfRangeHasTheSameCodeAsTheModel() throws Exception {
+        postJson("""
+                { "network": "2001:db8:acad::/48", "vlans": [ { "id": 5000 } ] }
+                """)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VLAN_ID_OUT_OF_RANGE"))
+                .andExpect(jsonPath("$.errors[0].field").value("vlans[0].id"));
+    }
+
+    @Test
+    void emptyObjectHasNoRequirements() throws Exception {
+        postJson("{}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("NO_REQUIREMENTS"));
+    }
+
+    @Test
     void noFormAtAll() throws Exception {
         postJson("""
                 { "network": "2001:db8:acad::/48", "subnetPrefix": 64 }
