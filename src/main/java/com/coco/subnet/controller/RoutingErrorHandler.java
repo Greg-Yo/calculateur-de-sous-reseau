@@ -35,10 +35,21 @@ public class RoutingErrorHandler {
             return;
         }
         if (ex instanceof HttpRequestMethodNotSupportedException) {
-            response.sendRedirect(request.getContextPath() + (path.startsWith("/vlsm") ? "/vlsm" : "/"));
+            response.sendRedirect(request.getContextPath() + redirectTarget(path));
             return;
         }
         // Relancer : Spring Boot affiche alors templates/error/404.html
         throw ex;
+    }
+
+    /** Mauvaise méthode : retour à la page dont l'URL est la plus proche. */
+    static String redirectTarget(String path) {
+        if (path.startsWith("/ipv6/plan")) {
+            return "/ipv6/plan";
+        }
+        if (path.startsWith("/ipv6")) {
+            return "/ipv6";
+        }
+        return path.startsWith("/vlsm") ? "/vlsm" : "/";
     }
 }

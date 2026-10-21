@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Plan IPv6')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main>
+    <h1>Plan d'adressage IPv6</h1>
+
+    <form th:action="@{/ipv6/plan}" th:object="${ipv6PlanForm}" method="post" class="card">
+        <!-- Bouton par défaut (touche Entrée) : calculer -->
+        <button type="submit" name="action" value="calculate" class="default-submit" tabindex="-1" aria-hidden="true">Calculer</button>
+
+        <div class="error-summary" th:if="${#fields.hasAnyErrors()}">
+            <p>Corrigez les erreurs suivantes :</p>
+            <ul>
+                <li th:each="err : ${#fields.allErrors()}" th:text="${err}">Erreur</li>
+            </ul>
+        </div>
+
+        <label for="network">Préfixe à découper</label>
+        <input id="network" type="text" th:field="*{network}" placeholder="2001:db8:acad::/48" autocomplete="off"
+               th:classappend="${#fields.hasErrors('network')} ? 'invalid'">
+        <p class="error" th:if="${#fields.hasErrors('network')}" th:errors="*{network}"></p>
+
+        <label for="subnetPrefix">Taille des sous-réseaux (/n)</label>
+        <input id="subnetPrefix" type="text" inputmode="numeric" th:field="*{subnetPrefix}"
+               th:classappend="${#fields.hasErrors('subnetPrefix')} ? 'invalid'">
+        <p class="error" th:if="${#fields.hasErrors('subnetPrefix')}" th:errors="*{subnetPrefix}"></p>
+
+        <label class="checkbox"><input type="checkbox" th:field="*{useVlans}"> Utiliser des VLAN</label>
+        <button type="submit" name="action" value="refresh" class="secondary">Mettre à jour le formulaire</button>
+
+        <fieldset th:if="*{useVlans}">
+            <legend>Générer les VLAN</legend>
+            <label for="vlanCount">Nombre de VLAN</label>
+            <input id="vlanCount" type="text" inputmode="numeric" th:field="*{vlanCount}"
+                   th:classappend="${#fields.hasErrors('vlanCount')} ? 'invalid'">
+            <p class="error" th:if="${#fields.hasErrors('vlanCount')}" th:errors="*{vlanCount}"></p>
+            <button type="submit" name="action" value="generate" class="secondary">Générer</button>
+        </fieldset>
+
+        <p class="error" th:if="${#fields.hasErrors('rows')}" th:errors="*{rows}"></p>
+        <table class="rows">
+            <thead>
+            <tr>
+                <th th:if="*{useVlans}">ID VLAN</th>
+                <th>Nom</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="row, stat : *{rows}"
+                th:classappend="${#fields.hasErrors('rows[__${stat.index}__].*')} ? 'row-error'">
+                <td th:if="*{useVlans}">
+                    <input type="text" inputmode="numeric" th:field="*{rows[__${stat.index}__].vlanId}" aria-label="ID VLAN">
+                    <p class="error" th:if="${#fields.hasErrors('rows[__${stat.index}__].vlanId')}"
+                       th:errors="*{rows[__${stat.index}__].vlanId}"></p>
+                </td>
+                <td>
+                    <input type="text" th:field="*{rows[__${stat.index}__].name}" aria-label="Nom">
+                    <p class="error" th:if="${#fields.hasErrors('rows[__${stat.index}__].name')}"
+                       th:errors="*{rows[__${stat.index}__].name}"></p>
+                </td>
+                <td>
+                    <button type="submit" name="action" th:value="'removeRow-' + ${stat.index}" class="link">Supprimer</button>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+
+        <div class="actions">
+            <button type="submit" name="action" value="addRow" class="secondary">Ajouter une ligne</button>
+            <button type="submit" name="action" value="calculate">Calculer</button>
+            <button type="submit" th:formaction="@{/ipv6/plan/csv}" class="secondary">Exporter CSV</button>
+        </div>
+    </form>
+
+    <section th:if="${plan}" class="card">
+        <h2>Plan d'adressage — <span th:text="${plan.network}">réseau</span></h2>
+        <p class="warning" th:each="warning : ${plan.warnings}" th:text="${warning}">Avertissement</p>
+        <table class="results">
+            <thead>
+            <tr>
+                <th th:if="${plan.mode == 'VLAN'}">VLAN</th>
+                <th>Nom</th>
+                <th>Réseau</th>
+                <th th:if="${plan.mode == 'VLAN'}">Passerelle</th>
+                <th>Première</th>
+                <th>Dernière</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="s : ${plan.subnets}">
+                <td th:if="${plan.mode == 'VLAN'}" th:text="${s.vlanId}"></td>
+                <td th:text="${s.name}"></td>
+                <td th:text="${s.cidr}"></td>
+                <td th:if="${plan.mode == 'VLAN'}" th:text="${s.gateway}"></td>
+                <td th:text="${s.firstAddress}"></td>
+                <td th:text="${s.lastAddress}"></td>
+            </tr>
+            </tbody>
+        </table>
+        <p>Sous-réseaux /<span th:text="${plan.subnetPrefix}">64</span> utilisés :
+            <strong th:text="${plan.usedSubnets}">0</strong> —
+            disponibles : <strong th:text="${availableGrouped}">0</strong> —
+            restants : <strong th:text="${remainingGrouped}">0</strong></p>
+    </section>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>
