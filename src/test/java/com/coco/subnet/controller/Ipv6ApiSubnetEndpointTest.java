@@ -1,6 +1,8 @@
 package com.coco.subnet.controller;
 
 import com.coco.subnet.service.CsvExporter;
+import com.coco.subnet.service.Ipv6CsvExporter;
+import com.coco.subnet.service.Ipv6PlanService;
 import com.coco.subnet.service.Ipv6SubnetService;
 import com.coco.subnet.service.SubnetService;
 import com.coco.subnet.service.VlsmService;
@@ -24,7 +26,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(Ipv6ApiController.class)
-@Import({SubnetService.class, VlsmService.class, CsvExporter.class, Ipv6SubnetService.class})
+@Import({SubnetService.class, VlsmService.class, CsvExporter.class, Ipv6SubnetService.class,
+        Ipv6PlanService.class, Ipv6CsvExporter.class})
 class Ipv6ApiSubnetEndpointTest {
 
     @Autowired
