@@ -3,9 +3,11 @@ package com.coco.subnet.model;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.math.BigInteger;
+import java.util.stream.IntStream;
 
 import static com.coco.subnet.TestErrors.firstError;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,6 +49,23 @@ class Ipv6CidrTest {
     @CsvSource({"0, 128", "1, 127", "63, 65", "64, 64", "65, 63", "127, 1", "128, 0"})
     void sizeIsTwoToTheHostBits(int prefix, int hostBits) {
         assertThat(new Ipv6Cidr(Ipv6Address.ONE, prefix).size()).isEqualTo(BigInteger.TWO.pow(hostBits));
+    }
+
+    static IntStream allPrefixes() {
+        return IntStream.rangeClosed(0, 128);
+    }
+
+    /** Spec §7 : chaque préfixe de /0 à /128, masque (les deux moitiés) et nombre d'adresses, comparés à BigInteger. */
+    @ParameterizedTest
+    @MethodSource("allPrefixes")
+    void maskAndSizeAreExactForEveryPrefix(int prefix) {
+        BigInteger all = BigInteger.ONE.shiftLeft(128).subtract(BigInteger.ONE);
+        BigInteger expectedMask = all.xor(BigInteger.ONE.shiftLeft(128 - prefix).subtract(BigInteger.ONE));
+        Ipv6Cidr cidr = new Ipv6Cidr(Ipv6Address.ONE, prefix);
+
+        assertThat(cidr.mask().high()).isEqualTo(expectedMask.shiftRight(64).longValue());
+        assertThat(cidr.mask().low()).isEqualTo(expectedMask.longValue());
+        assertThat(cidr.size()).isEqualTo(BigInteger.ONE.shiftLeft(128 - prefix));
     }
 
     @Test

@@ -31,7 +31,9 @@ class Ipv6AddressFormatTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"::", "::1", "2001:db8::ff00:42:8329", "fe80::", "ff02::1", "1:0:0:2::", "2001:db8:0:1:1:1:1:1"})
+    @ValueSource(strings = {"::", "::1", "2001:db8::ff00:42:8329", "2001:db8::1:0:0:1", "2001:db8::a", "fe80::",
+            "ff02::1", "8000::", "1:0:0:2::", "1:0:0:2::3", "2001:db8:0:1:1:1:1:1", "1:2:3:4:5:6:7:0",
+            "2001:db8:acad:10::", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"})
     void roundTripsThroughText(String text) {
         Ipv6Address address = parse(text);
         assertThat(parse(address.toString())).isEqualTo(address);
