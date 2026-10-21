@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('IPv6')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main>
+    <h1>Analyse d'un préfixe IPv6</h1>
+
+    <form th:action="@{/ipv6}" th:object="${ipv6CidrForm}" method="post" class="card">
+        <label for="cidr">Préfixe IPv6</label>
+        <input id="cidr" type="text" th:field="*{cidr}" placeholder="2001:db8:acad:10::/64" autocomplete="off"
+               th:classappend="${#fields.hasErrors('cidr')} ? 'invalid'">
+        <p class="error" th:if="${#fields.hasErrors('cidr')}" th:errors="*{cidr}">Erreur</p>
+        <button type="submit">Calculer</button>
+    </form>
+
+    <section th:if="${result}" class="card">
+        <p class="warning" th:each="warning : ${result.warnings}" th:text="${warning}">Avertissement</p>
+        <table class="details">
+            <tr><th>Réseau</th><td th:text="${result.cidr}"></td></tr>
+            <tr><th>Adresse réseau</th><td th:text="${result.networkAddress}"></td></tr>
+            <tr><th>Forme complète</th><td th:text="${result.networkAddressFull}"></td></tr>
+            <tr><th>Dernière adresse</th><td th:text="${result.lastAddress}"></td></tr>
+            <tr><th>Longueur du préfixe</th><td th:text="'/' + ${result.prefixLength}"></td></tr>
+            <tr><th>Adresses au total</th>
+                <td th:text="${result.totalAddressesPower} + ' = ' + ${totalAddressesGrouped}"></td></tr>
+            <tr><th>Sous-réseaux /64</th>
+                <td th:text="${subnets64Grouped} ?: '— (sans objet : préfixe plus long que /64)'"></td></tr>
+            <tr><th>Type d'adresse</th><td th:text="${result.addressTypeLabel}"></td></tr>
+        </table>
+    </section>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>
