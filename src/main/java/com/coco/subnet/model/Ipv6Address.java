@@ -7,6 +7,8 @@ import static com.coco.subnet.model.ErrorCode.INVALID_CHARACTERS;
 import static com.coco.subnet.model.ErrorCode.MULTIPLE_DOUBLE_COLON;
 import static com.coco.subnet.model.ErrorCode.WRONG_GROUP_COUNT;
 
+import java.util.StringJoiner;
+
 /**
  * Une adresse IPv6 : 128 bits rangés dans deux long.
  * high = les 4 premiers groupes, low = les 4 derniers (signés : 8000:: et plus ont un high négatif).
@@ -66,6 +68,58 @@ public record Ipv6Address(long high, long low) {
             low = (low << 16) | values[i + 4];
         }
         return new Ipv6Address(high, low);
+    }
+
+    /** Groupe n° index (0 à 7), entre 0 et 0xFFFF. */
+    public int group(int index) {
+        long half = index < 4 ? high : low;
+        int shift = 16 * (3 - index % 4);
+        return (int) ((half >>> shift) & 0xFFFF);
+    }
+
+    /** Forme complète : 8 groupes de 4 chiffres, sans "::". */
+    public String toFullString() {
+        StringJoiner joiner = new StringJoiner(":");
+        for (int i = 0; i < 8; i++) {
+            joiner.add(String.format("%04x", group(i)));
+        }
+        return joiner.toString();
+    }
+
+    /** Forme compressée de la RFC 5952. */
+    @Override
+    public String toString() {
+        // Plus longue suite d'au moins 2 groupes à zéro ; « > » garde la première en cas d'égalité
+        int bestStart = -1;
+        int bestLength = 1;
+        int i = 0;
+        while (i < 8) {
+            if (group(i) != 0) {
+                i++;
+                continue;
+            }
+            int start = i;
+            while (i < 8 && group(i) == 0) {
+                i++;
+            }
+            if (i - start > bestLength) {
+                bestStart = start;
+                bestLength = i - start;
+            }
+        }
+        StringBuilder text = new StringBuilder();
+        for (int g = 0; g < 8; g++) {
+            if (g == bestStart) {
+                text.append("::");
+                g += bestLength - 1;
+                continue;
+            }
+            if (!text.isEmpty() && text.charAt(text.length() - 1) != ':') {
+                text.append(':');
+            }
+            text.append(Integer.toHexString(group(g)));
+        }
+        return text.toString();
     }
 
     /** Morceaux entre les ':'. Une partie vide (à gauche de "::1") ne contient aucun groupe. */
