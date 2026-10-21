@@ -1,6 +1,9 @@
 package com.coco.subnet.controller;
 
+import com.coco.subnet.service.Ipv6CsvExporter;
+import com.coco.subnet.service.Ipv6PlanService;
 import com.coco.subnet.service.Ipv6SubnetService;
+import com.coco.subnet.service.VlsmService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -18,7 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 @WebMvcTest(Ipv6WebController.class)
-@Import(Ipv6SubnetService.class)
+@Import({Ipv6SubnetService.class, Ipv6PlanService.class, VlsmService.class, Ipv6CsvExporter.class})
 class Ipv6WebPagesTest {
 
     @Autowired
