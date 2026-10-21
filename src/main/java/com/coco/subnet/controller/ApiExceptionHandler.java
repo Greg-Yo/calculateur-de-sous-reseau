@@ -21,8 +21,8 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/** Erreurs survenues une fois la requête arrivée dans ApiController. */
-@RestControllerAdvice(assignableTypes = ApiController.class)
+/** Erreurs survenues une fois la requête arrivée dans ApiController ou Ipv6ApiController. */
+@RestControllerAdvice(assignableTypes = {ApiController.class, Ipv6ApiController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class ApiExceptionHandler {
 
