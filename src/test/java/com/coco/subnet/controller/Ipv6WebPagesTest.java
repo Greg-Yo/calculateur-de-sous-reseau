@@ -89,6 +89,29 @@ class Ipv6WebPagesTest {
     }
 
     @Test
+    void groupsTheWholeAddressSpace() throws Exception {
+        mvc.perform(post("/ipv6").param("cidr", "::/0"))
+                .andExpect(content().string(containsString(
+                        "2^128 = 340 282 366 920 938 463 463 374 607 431 768 211 456")))
+                .andExpect(content().string(containsString("<td>18 446 744 073 709 551 616</td>")));
+    }
+
+    @Test
+    void escapesTheUserInput() throws Exception {
+        mvc.perform(post("/ipv6").param("cidr", "<script>alert(1)</script>"))
+                .andExpect(status().isOk())
+                .andExpect(model().attributeHasFieldErrorCode("ipv6CidrForm", "cidr", "INVALID_CHARACTERS"))
+                .andExpect(content().string(containsString("value=\"&lt;script&gt;alert(1)&lt;/script&gt;\"")))
+                .andExpect(content().string(not(containsString("<script>"))));
+    }
+
+    @Test
+    void footerMentionsIpv6() throws Exception {
+        mvc.perform(get("/ipv6"))
+                .andExpect(content().string(containsString("IPv4 · IPv6 · CIDR · VLSM · VLAN")));
+    }
+
+    @Test
     void groupsThousandsWithSpaces() {
         assertThat(Ipv6WebController.groupThousands("18446744073709551616")).isEqualTo("18 446 744 073 709 551 616");
         assertThat(Ipv6WebController.groupThousands("65536")).isEqualTo("65 536");
