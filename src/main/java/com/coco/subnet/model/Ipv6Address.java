@@ -15,6 +15,8 @@ import java.util.StringJoiner;
  */
 public record Ipv6Address(long high, long low) {
 
+    public static final Ipv6Address ONE = new Ipv6Address(0L, 1L);
+
     public static Ipv6Address parse(String input, String field) {
         if (input == null || input.isBlank()) {
             throw InvalidInputException.of(EMPTY_INPUT, field, "L'adresse est obligatoire");
@@ -68,6 +70,50 @@ public record Ipv6Address(long high, long low) {
             low = (low << 16) | values[i + 4];
         }
         return new Ipv6Address(high, low);
+    }
+
+    /** Masque pour un préfixe /0 à /128, coupé en deux moitiés de 64 bits. */
+    public static Ipv6Address maskOf(int prefix) {
+        if (prefix < 0 || prefix > 128) {
+            throw new IllegalArgumentException("Préfixe hors limites : " + prefix);
+        }
+        // Java décale modulo 64 : -1L << 64 vaut -1L, d'où les cas /0 (pour high) et /64 (pour low)
+        long high = prefix == 0 ? 0L : (prefix >= 64 ? -1L : -1L << (64 - prefix));
+        long low = prefix <= 64 ? 0L : -1L << (128 - prefix);
+        return new Ipv6Address(high, low);
+    }
+
+    public Ipv6Address and(Ipv6Address other) {
+        return new Ipv6Address(high & other.high, low & other.low);
+    }
+
+    public Ipv6Address or(Ipv6Address other) {
+        return new Ipv6Address(high | other.high, low | other.low);
+    }
+
+    public Ipv6Address not() {
+        return new Ipv6Address(~high, ~low);
+    }
+
+    /** Addition sur 128 bits : si low « fait le tour », on reporte une retenue sur high. */
+    public Ipv6Address plus(Ipv6Address other) {
+        long sumLow = low + other.low;
+        long carry = Long.compareUnsigned(sumLow, low) < 0 ? 1 : 0;
+        return new Ipv6Address(high + other.high + carry, sumLow);
+    }
+
+    /** Décalage à gauche sur 128 bits (0 à 127) : les bits de poids fort de low passent dans high. */
+    public Ipv6Address shiftLeft(int bits) {
+        if (bits < 0 || bits > 127) {
+            throw new IllegalArgumentException("Décalage hors limites : " + bits);
+        }
+        if (bits == 0) {
+            return this;
+        }
+        if (bits >= 64) {
+            return new Ipv6Address(low << (bits - 64), 0L);
+        }
+        return new Ipv6Address((high << bits) | (low >>> (64 - bits)), low << bits);
     }
 
     /** Groupe n° index (0 à 7), entre 0 et 0xFFFF. */
