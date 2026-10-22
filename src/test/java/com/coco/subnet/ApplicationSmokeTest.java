@@ -12,6 +12,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -24,6 +26,15 @@ class ApplicationSmokeTest {
     @Test
     void swaggerUiIsServed() {
         assertThat(rest.getForEntity("/swagger-ui/index.html", String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void stylesheetUrlCarriesItsFingerprint() {
+        String page = rest.getForObject("/", String.class);
+        Matcher css = Pattern.compile("href=\"(/css/style-[0-9a-f]{32}\\.css)\"").matcher(page);
+
+        assertThat(css.find()).as("lien vers le CSS avec empreinte").isTrue();
+        assertThat(rest.getForEntity(css.group(1), String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     @Test
