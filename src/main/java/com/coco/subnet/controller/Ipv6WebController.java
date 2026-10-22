@@ -20,8 +20,10 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -47,6 +49,11 @@ public class Ipv6WebController {
         this.planService = planService;
         this.vlsmService = vlsmService;
         this.csvExporter = csvExporter;
+    }
+
+    @InitBinder
+    void describeTypeMismatches(WebDataBinder binder) {
+        binder.setBindingErrorProcessor(new TypeMismatchMessages());
     }
 
     @GetMapping("/ipv6")
@@ -84,7 +91,11 @@ public class Ipv6WebController {
             case "addRow" -> form.getRows().add(
                     new Ipv6RowForm(form.isUseVlans() ? vlsmService.nextVlanId(form.vlanIds()) : null, ""));
             case "generate" -> generate(form, binding);
-            case "calculate" -> calculate(form, binding).ifPresent(plan -> showPlan(plan, model));
+            case "calculate" -> {
+                if (!form.rowsOutOfDate() || generate(form, binding)) {
+                    calculate(form, binding).ifPresent(plan -> showPlan(plan, model));
+                }
+            }
             default -> removeRow(form, action); // "refresh" et actions inconnues : simple réaffichage
         }
         return "ipv6-plan";
@@ -121,9 +132,9 @@ public class Ipv6WebController {
     }
 
     /** Remplace les lignes par VLAN10, VLAN20… ; en cas d'erreur, les lignes actuelles sont gardées. */
-    private void generate(Ipv6PlanForm form, BindingResult binding) {
+    private boolean generate(Ipv6PlanForm form, BindingResult binding) {
         if (binding.hasFieldErrors("vlanCount")) {
-            return;
+            return false;
         }
         try {
             List<Ipv6Requirement> vlans = planService.generateVlans(form.getVlanCount());
@@ -131,8 +142,10 @@ public class Ipv6WebController {
             form.setRows(vlans.stream()
                     .map(v -> new Ipv6RowForm(v.vlanId(), v.name()))
                     .collect(Collectors.toCollection(ArrayList::new)));
+            return true;
         } catch (InvalidInputException e) {
             reject(binding, e);
+            return false;
         }
     }
 

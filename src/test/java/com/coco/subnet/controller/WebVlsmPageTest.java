@@ -14,6 +14,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.validation.BindingResult;
 
 import java.util.Map;
 
@@ -192,10 +193,79 @@ class WebVlsmPageTest {
     void generateWithTextShowsATypeMismatch() throws Exception {
         MvcResult result = mvc.perform(vlanForm("generate").param("vlanCount", "4").param("hostsPerVlan", "abc"))
                 .andExpect(model().attributeHasFieldErrorCode("vlsmForm", "hostsPerVlan", "typeMismatch"))
-                .andExpect(content().string(containsString("Doit être un nombre entier")))
+                .andReturn();
+
+        assertThat(errorMessage(result, "hostsPerVlan")).isEqualTo("Le nombre d'hôtes par VLAN doit être un nombre entier");
+        assertThat(form(result).getRows()).hasSize(2);
+    }
+
+    @Test
+    void typeMismatchMessagesNameTheLineAndTheField() throws Exception {
+        MvcResult result = mvc.perform(vlanForm("calculate", "abc", "x")).andReturn();
+
+        assertThat(errorMessage(result, "rows[0].hosts")).isEqualTo("Ligne 1 : le nombre d'hôtes doit être un nombre entier");
+        assertThat(errorMessage(result, "rows[1].vlanId")).isEqualTo("Ligne 2 : l'ID du VLAN doit être un nombre entier");
+    }
+
+    /** Entrée dans « Nombre de VLAN » envoie « calculate » : les lignes sont découpées d'abord. */
+    @Test
+    void enterInTheVlanCountSplitsBeforeCalculating() throws Exception {
+        MvcResult result = mvc.perform(post("/vlsm").param("network", "192.168.10.0/24")
+                        .param("useVlans", "true").param("_useVlans", "on").param("vlanMode", "EQUAL_SPLIT")
+                        .param("vlanCount", "4")
+                        .param("rows[0].vlanId", "10").param("rows[0].name", "").param("rows[0].hosts", "")
+                        .param("action", "calculate"))
+                .andReturn();
+
+        assertThat(form(result).getRows()).extracting(RowForm::getVlanId).containsExactly(10, 20, 30, 40);
+        VlsmResponse plan = (VlsmResponse) modelOf(result).get("plan");
+        assertThat(plan.subnets()).extracting(SubnetEntry::cidr)
+                .containsExactly("192.168.10.0/26", "192.168.10.64/26", "192.168.10.128/26", "192.168.10.192/26");
+    }
+
+    @Test
+    void enterInTheVlanCountGeneratesBeforeCalculating() throws Exception {
+        MvcResult result = mvc.perform(vlanForm("calculate").param("vlanMode", "UNIFORM")
+                        .param("vlanCount", "4").param("hostsPerVlan", "30"))
+                .andReturn();
+
+        assertThat(form(result).getRows()).extracting(RowForm::getName).containsExactly("VLAN10", "VLAN20", "VLAN30", "VLAN40");
+        VlsmResponse plan = (VlsmResponse) modelOf(result).get("plan");
+        assertThat(plan.usedAddresses()).isEqualTo(256);
+    }
+
+    @Test
+    void calculateKeepsEditedRowsWhenTheirNumberMatchesTheVlanCount() throws Exception {
+        MvcResult result = mvc.perform(vlanForm("calculate").param("vlanMode", "UNIFORM")
+                        .param("vlanCount", "2").param("hostsPerVlan", "5"))
+                .andReturn();
+
+        VlsmResponse plan = (VlsmResponse) modelOf(result).get("plan");
+        assertThat(plan.subnets()).extracting(SubnetEntry::name).containsExactly("VLAN10", "RH");
+        assertThat(plan.subnets()).extracting(SubnetEntry::requestedHosts).containsExactly(30L, 20L);
+    }
+
+    @Test
+    void enterWithAnInvalidVlanCountShowsTheErrorAndNoPlan() throws Exception {
+        MvcResult result = mvc.perform(vlanForm("calculate").param("vlanMode", "EQUAL_SPLIT").param("vlanCount", "0"))
+                .andExpect(model().attributeHasFieldErrorCode("vlsmForm", "vlanCount", "VLAN_COUNT_OUT_OF_RANGE"))
+                .andExpect(model().attributeDoesNotExist("plan"))
                 .andReturn();
 
         assertThat(form(result).getRows()).hasSize(2);
+    }
+
+    @Test
+    void customModeNeverRegeneratesTheRows() throws Exception {
+        MvcResult result = mvc.perform(vlanForm("calculate").param("vlanMode", "CUSTOM").param("vlanCount", "4"))
+                .andReturn();
+
+        assertThat(form(result).getRows()).hasSize(2);
+    }
+
+    private static String errorMessage(MvcResult result, String field) {
+        BindingResult binding = (BindingResult) modelOf(result).get(BindingResult.MODEL_KEY_PREFIX + "vlsmForm");
+        return binding.getFieldError(field).getDefaultMessage();
     }
 
     @Test

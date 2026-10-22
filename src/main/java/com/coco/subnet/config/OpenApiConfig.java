@@ -12,8 +12,9 @@ public class OpenApiConfig {
     public OpenAPI subnetCalculatorOpenApi() {
         return new OpenAPI().info(new Info()
                 .title("Subnet Calculator API")
-                .version("1.0")
-                .description("Calcul CIDR, découpage VLSM et plan d'adressage par VLAN (IPv4). "
+                .version("2.0")
+                .description("IPv4 : calcul CIDR, découpage VLSM et plan d'adressage par VLAN. "
+                        + "IPv6 : analyse d'un préfixe et découpage en sous-réseaux de même taille. "
                         + "Les erreurs suivent le format RFC 9457 (application/problem+json) avec un champ « code »."));
     }
 }

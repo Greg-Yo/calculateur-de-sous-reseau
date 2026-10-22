@@ -215,6 +215,15 @@ class ApiVlsmEndpointTest {
     }
 
     @Test
+    void bodyThatIsNotAnObjectIsExplained() throws Exception {
+        postJson("[]")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("TYPE_MISMATCH"))
+                .andExpect(jsonPath("$.detail").value("Le corps de la requête doit être un objet JSON"))
+                .andExpect(jsonPath("$.errors[0].field").doesNotExist());
+    }
+
+    @Test
     void decimalHostsAreRejected() throws Exception {
         postJson("""
                 { "network": "192.168.10.0/24", "vlans": [ { "id": 10, "hosts": 2.5 } ] }

@@ -113,7 +113,40 @@ class Ipv6WebPlanPageTest {
         mvc.perform(referenceForm("/ipv6/plan", "generate").param("vlanCount", "abc"))
                 .andExpect(status().isOk())
                 .andExpect(model().attributeHasFieldErrorCode("ipv6PlanForm", "vlanCount", "typeMismatch"))
-                .andExpect(content().string(containsString("Doit être un nombre entier")));
+                .andExpect(content().string(containsString("Le nombre de VLAN doit être un nombre entier")));
+    }
+
+    @Test
+    void textInTheSubnetSizeNamesTheField() throws Exception {
+        mvc.perform(post("/ipv6/plan").param("network", "2001:db8:acad::/48").param("subnetPrefix", "abc")
+                        .param("_useVlans", "on").param("rows[0].name", "LAN").param("action", "calculate"))
+                .andExpect(model().attributeHasFieldErrorCode("ipv6PlanForm", "subnetPrefix", "typeMismatch"))
+                .andExpect(content().string(containsString("La taille des sous-réseaux doit être un nombre entier")));
+    }
+
+    /** Entrée dans « Nombre de VLAN » envoie « calculate » : les lignes sont générées d'abord. */
+    @Test
+    void enterInTheVlanCountGeneratesBeforeCalculating() throws Exception {
+        MvcResult result = mvc.perform(post("/ipv6/plan").param("network", "2001:db8:acad::/48")
+                        .param("subnetPrefix", "64").param("useVlans", "true").param("_useVlans", "on")
+                        .param("vlanCount", "4").param("rows[0].vlanId", "10").param("rows[0].name", "")
+                        .param("action", "calculate"))
+                .andExpect(model().hasNoErrors())
+                .andReturn();
+
+        assertThat(form(result).getRows()).extracting(Ipv6RowForm::getVlanId).containsExactly(10, 20, 30, 40);
+        Ipv6PlanResponse plan = (Ipv6PlanResponse) result.getModelAndView().getModel().get("plan");
+        assertThat(plan.usedSubnets()).isEqualTo(4);
+    }
+
+    @Test
+    void enterWithAnInvalidVlanCountShowsTheErrorAndNoPlan() throws Exception {
+        MvcResult result = mvc.perform(referenceForm("/ipv6/plan", "calculate").param("vlanCount", "101"))
+                .andExpect(model().attributeHasFieldErrorCode("ipv6PlanForm", "vlanCount", "VLAN_COUNT_OUT_OF_RANGE"))
+                .andExpect(model().attributeDoesNotExist("plan"))
+                .andReturn();
+
+        assertThat(form(result).getRows()).hasSize(4);
     }
 
     @Test

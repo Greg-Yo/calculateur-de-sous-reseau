@@ -30,6 +30,14 @@ public class VlsmForm {
         return rows.stream().map(RowForm::getVlanId).toList();
     }
 
+    /**
+     * Entrée dans « Nombre de VLAN » envoie « Calculer » (bouton par défaut) :
+     * les lignes ne correspondent alors plus au nombre saisi et doivent être générées d'abord.
+     */
+    public boolean rowsOutOfDate() {
+        return useVlans && vlanMode != VlanInputMode.CUSTOM && vlanCount != null && vlanCount != rows.size();
+    }
+
     public String getNetwork() {
         return network;
     }

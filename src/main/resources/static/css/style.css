@@ -32,7 +32,8 @@ body {
 .site-header a { color: #fff; text-decoration: none; margin-right: 1rem; }
 .site-header .brand { font-weight: 700; }
 
-main { max-width: 64rem; margin: 0 auto; padding: 1rem; }
+/* 84rem : le plan VLAN (12 colonnes) tient sans défilement sur un écran de 1366 px */
+main { max-width: 84rem; margin: 0 auto; padding: 1rem; }
 
 .card {
     background: var(--card);
@@ -69,9 +70,24 @@ fieldset { border: 1px solid var(--border); border-radius: 6px; margin-top: 1rem
 
 table { border-collapse: collapse; width: 100%; margin-top: 0.75rem; }
 th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
-table.details th { width: 40%; color: var(--muted); font-weight: 600; }
+table.details { max-width: 48rem; }
+table.details th { width: 40%; color: var(--muted); font-weight: 600; white-space: normal; }
+/* Adresses IPv6 longues : retour à la ligne plutôt que des valeurs coupées sur mobile */
+table.details td { white-space: normal; overflow-wrap: anywhere; }
+table.results th, table.results td { padding: 0.35rem 0.5rem; font-size: 0.9rem; }
+table.results th, table.rows th { white-space: normal; vertical-align: bottom; }
+table.rows input[inputmode=numeric] { width: 4.5rem; }
+table.rows input[aria-label=Nom] { min-width: 5.75rem; }
 .row-error { background: var(--error-bg); }
 
 .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 
 .site-footer { text-align: center; color: var(--muted); padding: 2rem 1rem; }
+
+/* Téléphone : le tableau de saisie (ID, nom, hôtes, Supprimer) tient dans 375 px */
+@media (max-width: 30rem) {
+    .card { padding: 0.75rem; }
+    table.rows input[inputmode=numeric] { width: 3.75rem; }
+    table.rows th, table.rows button.link { font-size: 0.85rem; }
+    table.rows th, table.rows td { padding: 0.3rem 0.2rem; }
+}
