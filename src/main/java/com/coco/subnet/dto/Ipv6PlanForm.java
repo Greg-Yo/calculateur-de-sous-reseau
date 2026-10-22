@@ -31,6 +31,14 @@ public class Ipv6PlanForm {
         return rows.stream().map(Ipv6RowForm::getVlanId).toList();
     }
 
+    /**
+     * Entrée dans « Nombre de VLAN » envoie « Calculer » (bouton par défaut) :
+     * les lignes ne correspondent alors plus au nombre saisi et doivent être générées d'abord.
+     */
+    public boolean rowsOutOfDate() {
+        return useVlans && vlanCount != null && vlanCount != rows.size();
+    }
+
     public String getNetwork() {
         return network;
     }

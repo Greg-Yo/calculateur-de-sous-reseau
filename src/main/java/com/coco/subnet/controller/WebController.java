@@ -3,6 +3,7 @@ package com.coco.subnet.controller;
 import com.coco.subnet.dto.CidrForm;
 import com.coco.subnet.dto.RowForm;
 import com.coco.subnet.dto.SubnetResponse;
+import com.coco.subnet.dto.VlanInputMode;
 import com.coco.subnet.dto.VlsmForm;
 import com.coco.subnet.dto.VlsmResponse;
 import com.coco.subnet.model.InputError;
@@ -19,8 +20,10 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -44,6 +47,11 @@ public class WebController {
         this.subnetService = subnetService;
         this.vlsmService = vlsmService;
         this.csvExporter = csvExporter;
+    }
+
+    @InitBinder
+    void describeTypeMismatches(WebDataBinder binder) {
+        binder.setBindingErrorProcessor(new TypeMismatchMessages());
     }
 
     @GetMapping("/")
@@ -84,7 +92,11 @@ public class WebController {
                 }
             }
             case "generate" -> generate(form, binding);
-            case "calculate" -> showPlan(form, binding, model);
+            case "calculate" -> {
+                if (!form.rowsOutOfDate() || regenerate(form, binding)) {
+                    showPlan(form, binding, model);
+                }
+            }
             default -> removeRow(form, action); // "refresh" et actions inconnues : simple réaffichage
         }
         return "vlsm";
@@ -116,11 +128,16 @@ public class WebController {
         calculate(form, binding).ifPresent(plan -> model.addAttribute("plan", VlsmResponse.from(plan)));
     }
 
-    private void generate(VlsmForm form, BindingResult binding) {
+    private boolean generate(VlsmForm form, BindingResult binding) {
         if (binding.hasFieldErrors("vlanCount") || binding.hasFieldErrors("hostsPerVlan")) {
-            return;
+            return false;
         }
-        replaceRows(form, binding, () -> vlsmService.generateUniformVlans(form.getVlanCount(), form.getHostsPerVlan()));
+        return replaceRows(form, binding, () -> vlsmService.generateUniformVlans(form.getVlanCount(), form.getHostsPerVlan()));
+    }
+
+    /** Génère les lignes selon le mode choisi, comme le bouton du mode l'aurait fait. */
+    private boolean regenerate(VlsmForm form, BindingResult binding) {
+        return form.getVlanMode() == VlanInputMode.EQUAL_SPLIT ? split(form, binding) : generate(form, binding);
     }
 
     /** Remplace les lignes par les VLAN générés ; en cas d'erreur, les lignes actuelles sont gardées. */
