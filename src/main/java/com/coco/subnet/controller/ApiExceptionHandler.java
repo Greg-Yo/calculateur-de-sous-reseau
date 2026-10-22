@@ -57,6 +57,10 @@ public class ApiExceptionHandler {
         MismatchedInputException mismatch = findCause(ex, MismatchedInputException.class);
         if (mismatch != null) {
             String field = path(mismatch);
+            if (field.isEmpty()) {
+                // Le corps entier a le mauvais type : [], "texte", 42…
+                return ApiProblems.badRequest(ErrorCode.TYPE_MISMATCH, null, "Le corps de la requête doit être un objet JSON");
+            }
             return ApiProblems.badRequest(ErrorCode.TYPE_MISMATCH, field, "Type invalide pour le champ « " + field + " »");
         }
         if (findCause(ex, InputCoercionException.class) != null) {

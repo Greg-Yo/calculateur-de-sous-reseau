@@ -8,6 +8,7 @@ import static com.coco.subnet.model.ErrorCode.MULTIPLE_DOUBLE_COLON;
 import static com.coco.subnet.model.ErrorCode.WRONG_GROUP_COUNT;
 
 import java.util.StringJoiner;
+import java.util.regex.Pattern;
 
 /**
  * Une adresse IPv6 : 128 bits rangés dans deux long.
@@ -16,6 +17,8 @@ import java.util.StringJoiner;
 public record Ipv6Address(long high, long low) {
 
     public static final Ipv6Address ONE = new Ipv6Address(0L, 1L);
+    /** Une adresse IPv4 entière (192.168.1.0) : on renvoie vers le calcul IPv4 plutôt que de parler de caractère. */
+    private static final Pattern IPV4 = Pattern.compile("\\d{1,3}(\\.\\d{1,3}){3}");
 
     public static Ipv6Address parse(String input, String field) {
         if (input == null || input.isBlank()) {
@@ -32,6 +35,10 @@ public record Ipv6Address(long high, long low) {
     static Ipv6Address parseStrict(String text, String field) {
         if (text.isEmpty()) {
             throw InvalidInputException.of(EMPTY_INPUT, field, "L'adresse est obligatoire");
+        }
+        if (IPV4.matcher(text).matches()) {
+            throw InvalidInputException.of(INVALID_CHARACTERS, field,
+                    "C'est une adresse IPv4 : utilisez le calcul CIDR IPv4 (page CIDR ou /api/subnets)");
         }
         for (char c : text.toCharArray()) {
             if (!isHexDigit(c) && c != ':') {

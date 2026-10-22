@@ -36,6 +36,8 @@ class Ipv6AddressParseTest {
             "2001 :db8::1              | INVALID_CHARACTERS    | Caractère non autorisé : ' '",
             "２００１::1                | INVALID_CHARACTERS    | Caractère non autorisé : '２'",
             "::ffff:192.168.1.1        | INVALID_CHARACTERS    | Caractère non autorisé : '.' (la notation IPv4 intégrée n'est pas prise en charge)",
+            "192.168.1.0               | INVALID_CHARACTERS    | C'est une adresse IPv4 : utilisez le calcul CIDR IPv4 (page CIDR ou /api/subnets)",
+            "1.2.3                     | INVALID_CHARACTERS    | Caractère non autorisé : '.' (la notation IPv4 intégrée n'est pas prise en charge)",
             "fe80::1%eth0              | INVALID_CHARACTERS    | Caractère non autorisé : '%' (les identifiants de zone ne sont pas pris en charge)",
             "2001::db8::1              | MULTIPLE_DOUBLE_COLON | « :: » ne peut apparaître qu'une seule fois",
             "1:::2                     | MULTIPLE_DOUBLE_COLON | « :: » ne peut apparaître qu'une seule fois",

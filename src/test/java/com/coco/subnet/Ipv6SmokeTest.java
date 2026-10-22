@@ -33,6 +33,7 @@ class Ipv6SmokeTest {
         assertThat(docs.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(docs.getBody())
                 .contains("/api/ipv6/subnets", "/api/ipv6/plan", "/api/ipv6/plan/csv")
+                .contains("IPv6 : analyse d'un préfixe", "\"version\":\"2.0\"")
                 .doesNotContain("\"/ipv6\"", "\"/ipv6/plan\"");
     }
 
